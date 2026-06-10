@@ -1,0 +1,42 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: private-chat
+  flyway:
+    enabled: false
+  r2dbc:
+    url: r2dbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:private_chat}
+    username: ${DB_USER:private_chat}
+    password: ${DB_PASSWORD:your_password}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when_authorized
+
+app:
+  nats:
+    url: ${NATS_URL:nats://localhost:4222}
+  jwt:
+    secret: ${JWT_SECRET:change-me-to-random-256-bit-string-min-32-chars}
+    access-ttl-minutes: ${JWT_ACCESS_TTL_MINUTES:15}
+    refresh-ttl-days: ${JWT_REFRESH_TTL_DAYS:7}
+
+logging:
+  level:
+    chat.privatechat: INFO
+    org.springframework.r2dbc: WARN
