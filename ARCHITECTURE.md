@@ -8,52 +8,66 @@
 flowchart TB
     subgraph api [api]
         REST[REST controllers]
+        WS[DraftWebSocketHandler]
     end
     subgraph application [application]
         Auth[AuthService]
+        Draft[DraftService]
         Msg[MessageCommandService]
+        Outbox[OutboxPublisherService]
     end
     subgraph domain [domain]
-        Models[User, Chat, Message]
+        Models[User, Chat, Message, DraftSnapshot]
         Ports[Repository ports]
     end
     subgraph infrastructure [infrastructure]
         R2DBC[R2DBC adapters]
-        Redis[Lettuce - фаза 2]
-        NATS[jnats - фаза 2 publisher]
+        Redis[Redis drafts + rate limit]
+        NATS[NATS JetStream]
         JWT[JwtService]
     end
     REST --> Auth
+    REST --> Draft
     REST --> Msg
+    WS --> Draft
+    WS --> Msg
+    Outbox --> NATS
+    NATS --> WS
     Auth --> Ports
+    Draft --> Ports
     Msg --> Ports
     Ports --> R2DBC
+    Ports --> Redis
     Ports --> JWT
 ```
 
 | Пакет | Назначение |
 |-------|------------|
-| `chat.privatechat.api` | HTTP DTO, `@RestController`, обработка ошибок |
-| `chat.privatechat.application` | Use-cases: auth, чаты, сообщения |
+| `chat.privatechat.api` | HTTP DTO, `@RestController`, WebSocket, обработка ошибок |
+| `chat.privatechat.application` | Use-cases: auth, чаты, черновики, сообщения, outbox |
 | `chat.privatechat.domain` | Модели и порты (без Spring) |
-| `chat.privatechat.infrastructure` | R2DBC, JWT, NATS, UUID |
-| `chat.privatechat.config` | Security, beans |
+| `chat.privatechat.infrastructure` | R2DBC, Redis, NATS, JWT, UUID |
+| `chat.privatechat.config` | Security, beans, WebSocket mapping |
 
-## Write-path (фаза 1)
+## Write-path (draft-sync)
 
-Прямой `POST /api/v1/chats/{chatId}/messages`:
+WebSocket `/api/v1/ws?token=<JWT>` или REST `/drafts/{id}/commit`:
 
-1. Проверка membership в чате
-2. Транзакция: `INSERT messages` + `INSERT outbox`
-3. Ответ `202 Accepted`
-4. Outbox publisher → NATS — **фаза 2**
+1. Проверка membership, rate limit, revision черновика
+2. Снимок из Redis → транзакция: `INSERT messages` + `INSERT outbox`
+3. Удаление черновика в Redis
+4. Ответ `message.accepted` (202 / WS frame)
+5. Outbox publisher → NATS JetStream `chat.events`
+6. NATS subscriber → `message.new` всем онлайн-участникам чата
+
+Прямой `POST /messages` — fallback без черновика (боты, тесты).
 
 ## Глоссарий
 
 | Термин | Значение |
 |--------|----------|
 | `clientMessageId` | UUID клиента для идемпотентности; уникален в рамках чата |
-| `revision` | Версия черновика в Redis (фаза 2) |
+| `revision` | Версия черновика в Redis; last-write-wins |
 | `outbox` | Таблица событий в той же TX, что и сообщение; at-least-once доставка |
 
 ## Документация в коде

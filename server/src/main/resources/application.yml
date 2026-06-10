@@ -26,6 +26,14 @@ management:
 app:
   nats:
     url: ${NATS_URL:nats://localhost:4222}
+  draft:
+    ttl-minutes: ${DRAFT_TTL_MINUTES:30}
+    patch-rate-limit-per-second: ${DRAFT_PATCH_RATE_LIMIT:20}
+    commit-rate-limit-per-minute: ${DRAFT_COMMIT_RATE_LIMIT:30}
+    message-rate-limit-per-minute: ${MESSAGE_RATE_LIMIT:30}
+  outbox:
+    poll-interval-ms: ${OUTBOX_POLL_INTERVAL_MS:500}
+    batch-size: ${OUTBOX_BATCH_SIZE:100}
   jwt:
     secret: ${JWT_SECRET:change-me-to-random-256-bit-string-min-32-chars}
     access-ttl-minutes: ${JWT_ACCESS_TTL_MINUTES:15}

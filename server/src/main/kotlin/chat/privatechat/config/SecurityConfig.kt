@@ -63,6 +63,8 @@ class SecurityConfig(
                     .permitAll()
                     .pathMatchers("/actuator/health", "/actuator/info")
                     .permitAll()
+                    .pathMatchers("/api/v1/ws")
+                    .permitAll()
                     .pathMatchers("/api/**")
                     .authenticated()
                     .anyExchange()

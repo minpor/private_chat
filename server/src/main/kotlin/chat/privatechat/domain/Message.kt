@@ -30,7 +30,7 @@ data class Message(
 }
 
 /**
- * Событие transactional outbox для асинхронной доставки (фаза 2: NATS publisher).
+ * Событие transactional outbox для асинхронной доставки через NATS JetStream.
  */
 data class OutboxEvent(
     val id: UUID,

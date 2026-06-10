@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Configuration
 import java.time.Duration
 
 /**
- * NATS-клиент (jnats). JetStream publisher — фаза 2.
+ * NATS-клиент (jnats) + JetStream stream `CHAT_EVENTS`.
  */
 @Configuration
 class NatsConfig(

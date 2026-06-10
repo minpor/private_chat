@@ -6,7 +6,7 @@
 
 - Spring Boot **4.0.6** WebFlux, Kotlin **2.4**, JDK **21**
 - PostgreSQL (R2DBC), Redis (reactive), NATS JetStream
-- Draft-sync — **фаза 2**; сейчас: JWT auth + прямой POST/GET messages
+- Draft-sync через WebSocket + REST fallback; JWT auth; outbox → NATS → `message.new`
 
 Архитектура: [ARCHITECTURE.md](ARCHITECTURE.md) · полный план: [docs/PLAN.md](docs/PLAN.md)
 
@@ -16,8 +16,8 @@
 |-----------|--------|-------|
 | JDK | 21 LTS | runtime, Gradle toolchain |
 | PostgreSQL | 16+ | users, chats, messages, outbox |
-| Redis | 7+ | drafts, rate limit (фаза 2) |
-| NATS | 2.10+ с `-js` | fan-out (фаза 2) |
+| Redis | 7+ | drafts, rate limit |
+| NATS | 2.10+ с `-js` | outbox fan-out |
 
 Примеры (Ubuntu / Debian):
 
@@ -144,7 +144,38 @@ curl -s -X POST "http://localhost:8080/api/v1/chats/$CHAT_ID/messages" \
 # история
 curl -s "http://localhost:8080/api/v1/chats/$CHAT_ID/messages?limit=50" \
   -H "Authorization: Bearer $TOKEN"
+
+# draft-sync (REST fallback)
+DRAFT_ID="660e8400-e29b-41d4-a716-446655440001"
+curl -s -X POST "http://localhost:8080/api/v1/chats/$CHAT_ID/drafts" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "{\"draftId\":\"$DRAFT_ID\",\"clientSessionId\":\"cli-1\"}"
+
+curl -s -X PUT "http://localhost:8080/api/v1/chats/$CHAT_ID/drafts/$DRAFT_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"revision":1,"text":"Привет через draft!"}'
+
+curl -s -X POST "http://localhost:8080/api/v1/chats/$CHAT_ID/drafts/$DRAFT_ID/commit" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"clientMessageId":"770e8400-e29b-41d4-a716-446655440002","expectedRevision":1}'
 ```
+
+### WebSocket draft-sync
+
+Подключение: `ws://localhost:8080/api/v1/ws?token=<accessToken>`
+
+Фреймы (JSON text):
+
+```json
+{"type":"draft.start","payload":{"chatId":"<uuid>","draftId":"<uuid>","clientSessionId":"cli-1"}}
+{"type":"draft.patch","payload":{"chatId":"<uuid>","draftId":"<uuid>","revision":1,"text":"Привет"}}
+{"type":"draft.commit","payload":{"chatId":"<uuid>","draftId":"<uuid>","clientMessageId":"<uuid>","expectedRevision":1}}
+```
+
+Ответы сервера: `draft.started`, `draft.patch.ack`, `message.accepted`, `message.new` (всем участникам чата).
 
 ## Gradle-задачи
 
