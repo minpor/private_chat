@@ -20,8 +20,8 @@ export const options = {
       rate: TARGET_RATE,
       timeUnit: '1s',
       duration: DURATION,
-      preAllocatedVUs: Math.min(TARGET_RATE, 500),
-      maxVUs: Math.min(TARGET_RATE * 2, 1000)
+      preAllocatedVUs: Math.min(TARGET_RATE, 1000),
+      maxVUs: Math.min(TARGET_RATE * 2, 2000)
     }
   },
   thresholds: {

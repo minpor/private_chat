@@ -15,7 +15,7 @@ spring:
     pool:
       enabled: true
       initial-size: ${R2DBC_POOL_INITIAL_SIZE:10}
-      max-size: ${R2DBC_POOL_MAX_SIZE:50}
+      max-size: ${R2DBC_POOL_MAX_SIZE:150}
       max-idle-time: ${R2DBC_POOL_MAX_IDLE_TIME:30m}
       max-acquire-time: ${R2DBC_POOL_MAX_ACQUIRE_TIME:5s}
       max-create-connection-time: ${R2DBC_POOL_MAX_CREATE_TIME:5s}
