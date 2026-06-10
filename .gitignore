@@ -9,4 +9,5 @@ server/build/
 out/
 .env
 *.log
+load-tests/results/
 .DS_Store
