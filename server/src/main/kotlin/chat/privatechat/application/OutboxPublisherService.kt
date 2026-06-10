@@ -1,6 +1,5 @@
 package chat.privatechat.application
 
-import chat.privatechat.domain.ports.OutboxRepository
 import chat.privatechat.infrastructure.nats.NatsEventPublisher
 import chat.privatechat.infrastructure.observability.ChatMetrics
 import chat.privatechat.infrastructure.nats.OutboxProperties
@@ -12,8 +11,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 
 /**
@@ -22,10 +21,10 @@ import java.time.Instant
 @Service
 @Suppress("TooGenericExceptionCaught")
 class OutboxPublisherService(
-    private val outboxRepository: OutboxRepository,
+    private val outboxPublishSupport: OutboxPublishSupport,
     private val natsEventPublisher: NatsEventPublisher,
     private val outboxProperties: OutboxProperties,
-    private val outboxScope: CoroutineScope,
+    @Qualifier("outboxPublisherScope") private val outboxPublisherScope: CoroutineScope,
     private val chatMetrics: ChatMetrics
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -33,14 +32,17 @@ class OutboxPublisherService(
 
     @PostConstruct
     fun start() {
-        publisherJob = outboxScope.launch {
+        publisherJob = outboxPublisherScope.launch {
             while (isActive) {
                 try {
-                    publishBatch()
+                    val hadWork = publishBatch()
+                    if (!hadWork) {
+                        delay(outboxProperties.pollIntervalMs)
+                    }
                 } catch (ex: RuntimeException) {
                     log.warn("Outbox publish batch failed", ex)
+                    delay(outboxProperties.pollIntervalMs)
                 }
-                delay(outboxProperties.pollIntervalMs)
             }
         }
     }
@@ -50,17 +52,22 @@ class OutboxPublisherService(
         publisherJob?.cancel()
     }
 
-    @Transactional
-    suspend fun publishBatch() {
-        val events = outboxRepository.lockUnpublished(outboxProperties.batchSize)
-        if (events.isEmpty()) return
+    private suspend fun publishBatch(): Boolean {
+        val events = outboxPublishSupport.lockBatch(outboxProperties.batchSize)
+        if (events.isEmpty()) return false
 
-        val publishedAt = Instant.now()
         for (event in events) {
             natsEventPublisher.publish(event.payload.toByteArray(Charsets.UTF_8))
-            outboxRepository.markPublished(event.id, publishedAt)
         }
+        outboxPublishSupport.markBatch(events.map { it.id }, Instant.now())
         chatMetrics.recordOutboxPublished(events.size)
         log.debug("Published {} outbox events to NATS", events.size)
+
+        delay(BUSY_BACKOFF_MS)
+        return true
+    }
+
+    companion object {
+        private const val BUSY_BACKOFF_MS = 50L
     }
 }

@@ -1,5 +1,6 @@
 package chat.privatechat.infrastructure.persistence
 
+import chat.privatechat.application.ChatAccessDeniedException
 import chat.privatechat.domain.Message
 import chat.privatechat.domain.ports.MessageRepository
 import kotlinx.coroutines.reactor.awaitSingle
@@ -60,6 +61,35 @@ class R2dbcMessageRepository(
             .map { row, _ -> row.toMessage() }
             .one()
             .awaitSingle()
+
+    override suspend fun insertForSender(message: Message): Message {
+        val inserted = databaseClient.sql(
+            """
+            INSERT INTO messages (id, chat_id, sender_id, client_msg_id, body, reply_to, created_at)
+            SELECT :id, :chat_id, :sender_id, :client_msg_id, :body, :reply_to, :created_at
+            WHERE EXISTS (
+                SELECT 1 FROM chat_members
+                WHERE chat_id = :chat_id AND user_id = :sender_id
+            )
+            ON CONFLICT (chat_id, client_msg_id) DO NOTHING
+            RETURNING id, chat_id, sender_id, client_msg_id, body, reply_to, created_at, deleted_at
+            """.trimIndent()
+        )
+            .bind("id", message.id)
+            .bind("chat_id", message.chatId)
+            .bind("sender_id", message.senderId)
+            .bind("client_msg_id", message.clientMessageId)
+            .bind("body", message.body)
+            .bindNullable("reply_to", message.replyTo)
+            .bind("created_at", message.createdAt)
+            .map { row, _ -> row.toMessage() }
+            .awaitOneOrNull()
+
+        if (inserted != null) return inserted
+
+        return findByClientMessageId(message.chatId, message.clientMessageId)
+            ?: throw ChatAccessDeniedException(message.chatId)
+    }
 
     override suspend fun listBefore(chatId: UUID, before: Instant?, limit: Int): List<Message> {
         val sql = if (before == null) {

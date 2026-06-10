@@ -3,8 +3,8 @@ package chat.privatechat.application
 import chat.privatechat.infrastructure.observability.ChatMetrics
 import chat.privatechat.infrastructure.observability.ChatMetrics.RateLimitOperation
 import chat.privatechat.infrastructure.redis.DraftProperties
-import kotlinx.coroutines.reactor.awaitSingleOrNull
-import org.springframework.data.domain.Range
+import chat.privatechat.infrastructure.redis.SlidingWindowRateLimitScript
+import kotlinx.coroutines.reactor.awaitSingle
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate
 import org.springframework.stereotype.Service
 import java.time.Duration
@@ -58,13 +58,21 @@ class RateLimitService(
         val now = System.currentTimeMillis()
         val windowStart = now - window.toMillis()
         val member = "$now:${UUID.randomUUID()}"
-        val scoreRange = Range.closed(windowStart.toDouble(), now.toDouble())
+        val expireSeconds = window.seconds.coerceAtLeast(1) + 1
 
-        val ops = redisTemplate.opsForZSet()
-        ops.removeRangeByScore(key, Range.closed(0.0, windowStart.toDouble())).awaitSingleOrNull()
-        ops.add(key, member, now.toDouble()).awaitSingleOrNull()
-        val count = ops.count(key, scoreRange).awaitSingleOrNull() ?: 0L
-        redisTemplate.expire(key, window.plusSeconds(1)).awaitSingleOrNull()
+        val count = redisTemplate.execute(
+            SlidingWindowRateLimitScript.script,
+            listOf(key),
+            listOf(
+                now.toString(),
+                windowStart.toString(),
+                member,
+                expireSeconds.toString()
+            )
+        )
+            .collectList()
+            .awaitSingle()
+            .firstOrNull() ?: 0L
 
         if (count > limit) {
             chatMetrics.recordRateLimitExceeded(operation)

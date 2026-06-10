@@ -14,6 +14,11 @@ interface MessageRepository {
 
     suspend fun insert(message: Message): Message
 
+    /**
+     * INSERT если отправитель — участник чата. Идемпотентность по (chatId, clientMessageId).
+     */
+    suspend fun insertForSender(message: Message): Message
+
     suspend fun listBefore(
         chatId: UUID,
         before: Instant?,

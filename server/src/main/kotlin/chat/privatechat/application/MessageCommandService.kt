@@ -25,7 +25,6 @@ import java.util.UUID
 class MessageCommandService(
     private val messageRepository: MessageRepository,
     private val outboxRepository: OutboxRepository,
-    private val chatService: ChatService,
     private val draftService: DraftService,
     private val rateLimitService: RateLimitService,
     private val idGenerator: IdGenerator,
@@ -40,7 +39,6 @@ class MessageCommandService(
         text: String,
         replyTo: UUID?
     ): Message {
-        chatService.requireMembership(chatId, senderId)
         rateLimitService.checkDirectMessageLimit(senderId)
 
         return persistMessage(
@@ -64,7 +62,6 @@ class MessageCommandService(
         clientMessageId: UUID,
         expectedRevision: Long?
     ): Message {
-        chatService.requireMembership(snapshot.chatId, snapshot.userId)
         rateLimitService.checkCommitLimit(snapshot.userId)
         draftService.validateRevision(snapshot, expectedRevision)
 
@@ -88,8 +85,6 @@ class MessageCommandService(
         replyTo: UUID?,
         source: MessageSource
     ): Message {
-        messageRepository.findByClientMessageId(chatId, clientMessageId)?.let { return it }
-
         val trimmed = body.trim()
         require(trimmed.isNotEmpty()) { "Message text must not be empty" }
         require(trimmed.length <= MAX_MESSAGE_LENGTH) {
@@ -107,7 +102,7 @@ class MessageCommandService(
             createdAt = now,
             deletedAt = null
         )
-        val saved = messageRepository.insert(message)
+        val saved = messageRepository.insertForSender(message)
         outboxRepository.insert(buildOutboxEvent(saved, now))
         chatMetrics.recordMessageAccepted(source)
         return saved

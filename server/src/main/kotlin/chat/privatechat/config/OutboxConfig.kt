@@ -15,10 +15,23 @@ import java.util.concurrent.Executors
 class OutboxConfig {
 
     @Bean
-    fun outboxScope(): CoroutineScope {
-        val dispatcher = Executors.newFixedThreadPool(2) { runnable ->
+    fun outboxPublisherScope(): CoroutineScope {
+        val dispatcher = Executors.newFixedThreadPool(OUTBOX_PUBLISHER_THREADS) { runnable ->
             Thread(runnable, "outbox-publisher").apply { isDaemon = true }
         }.asCoroutineDispatcher()
         return CoroutineScope(SupervisorJob() + dispatcher)
+    }
+
+    @Bean
+    fun natsSubscriberScope(): CoroutineScope {
+        val dispatcher = Executors.newFixedThreadPool(NATS_SUBSCRIBER_THREADS) { runnable ->
+            Thread(runnable, "nats-subscriber").apply { isDaemon = true }
+        }.asCoroutineDispatcher()
+        return CoroutineScope(SupervisorJob() + dispatcher)
+    }
+
+    companion object {
+        private const val OUTBOX_PUBLISHER_THREADS = 6
+        private const val NATS_SUBSCRIBER_THREADS = 2
     }
 }

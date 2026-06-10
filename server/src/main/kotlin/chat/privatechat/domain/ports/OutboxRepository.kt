@@ -12,5 +12,5 @@ interface OutboxRepository {
 
     suspend fun lockUnpublished(limit: Int): List<OutboxEvent>
 
-    suspend fun markPublished(id: UUID, publishedAt: Instant)
+    suspend fun markPublishedBatch(ids: List<UUID>, publishedAt: Instant)
 }

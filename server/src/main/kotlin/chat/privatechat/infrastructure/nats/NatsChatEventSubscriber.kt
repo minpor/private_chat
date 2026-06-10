@@ -17,6 +17,7 @@ import jakarta.annotation.PreDestroy
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
 import java.util.UUID
 
@@ -31,7 +32,7 @@ class NatsChatEventSubscriber(
     private val chatRepository: ChatRepository,
     private val wsSessionRegistry: WsSessionRegistry,
     private val objectMapper: ObjectMapper,
-    private val outboxScope: CoroutineScope
+    @Qualifier("natsSubscriberScope") private val natsSubscriberScope: CoroutineScope
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private var dispatcher: Dispatcher? = null
@@ -52,7 +53,7 @@ class NatsChatEventSubscriber(
             NatsChatSubjects.EVENTS,
             dispatcher,
             { msg ->
-                outboxScope.launch {
+                natsSubscriberScope.launch {
                     try {
                         handleEvent(msg)
                     } catch (ex: RuntimeException) {

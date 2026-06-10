@@ -51,14 +51,15 @@ class R2dbcOutboxRepository(
             .collectList()
             .awaitSingle()
 
-    override suspend fun markPublished(id: java.util.UUID, publishedAt: java.time.Instant) {
+    override suspend fun markPublishedBatch(ids: List<java.util.UUID>, publishedAt: java.time.Instant) {
+        if (ids.isEmpty()) return
         databaseClient.sql(
             """
-            UPDATE outbox SET published_at = :published_at WHERE id = :id
+            UPDATE outbox SET published_at = :published_at WHERE id = ANY(:ids)
             """.trimIndent()
         )
-            .bind("id", id)
             .bind("published_at", publishedAt)
+            .bind("ids", ids.toTypedArray())
             .fetch()
             .rowsUpdated()
             .awaitSingle()
