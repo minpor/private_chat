@@ -6,9 +6,9 @@ import chat.privatechat.application.DraftService
 import chat.privatechat.application.MessageCommandService
 import chat.privatechat.application.RateLimitExceededException
 import chat.privatechat.infrastructure.jwt.JwtService
-import com.fasterxml.jackson.core.JsonProcessingException
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.core.JacksonException
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.json.JsonMapper
 import io.jsonwebtoken.JwtException
 import kotlinx.coroutines.reactor.awaitSingleOrNull
 import kotlinx.coroutines.reactor.mono
@@ -32,7 +32,7 @@ class DraftWebSocketHandler(
     private val draftService: DraftService,
     private val messageCommandService: MessageCommandService,
     private val wsSessionRegistry: WsSessionRegistry,
-    private val objectMapper: ObjectMapper
+    private val jsonMapper: JsonMapper
 ) : WebSocketHandler {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -70,8 +70,8 @@ class DraftWebSocketHandler(
         if (!message.type.equals(WebSocketMessage.Type.TEXT)) return
 
         val envelope = try {
-            objectMapper.readValue(message.payloadAsText, WsEnvelope::class.java)
-        } catch (ex: JsonProcessingException) {
+            jsonMapper.readValue(message.payloadAsText, WsEnvelope::class.java)
+        } catch (ex: JacksonException) {
             log.debug("Invalid WS frame: {}", ex.message)
             send(session, WsFrameFactory.error("INVALID_FRAME", "Malformed JSON frame"))
             return
@@ -135,7 +135,7 @@ class DraftWebSocketHandler(
     }
 
     private suspend fun send(session: WebSocketSession, frame: Map<String, Any?>) {
-        val json = objectMapper.writeValueAsString(frame)
+        val json = jsonMapper.writeValueAsString(frame)
         session.send(Mono.just(session.textMessage(json))).awaitSingleOrNull()
     }
 

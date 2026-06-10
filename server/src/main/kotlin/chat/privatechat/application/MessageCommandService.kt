@@ -9,7 +9,7 @@ import chat.privatechat.domain.ports.MessageRepository
 import chat.privatechat.domain.ports.OutboxRepository
 import chat.privatechat.infrastructure.observability.ChatMetrics
 import chat.privatechat.infrastructure.observability.ChatMetrics.MessageSource
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.json.JsonMapper
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
@@ -30,7 +30,7 @@ class MessageCommandService(
     private val draftService: DraftService,
     private val rateLimitService: RateLimitService,
     private val idGenerator: IdGenerator,
-    private val objectMapper: ObjectMapper,
+    private val jsonMapper: JsonMapper,
     private val chatMetrics: ChatMetrics
 ) {
     @Transactional
@@ -119,7 +119,7 @@ class MessageCommandService(
         OutboxEvent(
             id = idGenerator.nextId(),
             eventType = EVENT_MESSAGE_CREATED,
-            payload = objectMapper.writeValueAsString(
+            payload = jsonMapper.writeValueAsString(
                 mapOf(
                     "messageId" to message.id.toString(),
                     "chatId" to message.chatId.toString(),

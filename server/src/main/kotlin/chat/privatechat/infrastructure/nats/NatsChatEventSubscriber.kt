@@ -3,8 +3,8 @@ package chat.privatechat.infrastructure.nats
 import chat.privatechat.api.ws.WsFrameFactory
 import chat.privatechat.api.ws.WsSessionRegistry
 import chat.privatechat.domain.ports.ChatMemberLookup
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.json.JsonMapper
 import io.nats.client.Connection
 import io.nats.client.Dispatcher
 import io.nats.client.Message
@@ -31,7 +31,7 @@ class NatsChatEventSubscriber(
     private val jetStreamSetup: JetStreamSetup,
     private val chatMemberLookup: ChatMemberLookup,
     private val wsSessionRegistry: WsSessionRegistry,
-    private val objectMapper: ObjectMapper,
+    private val jsonMapper: JsonMapper,
     @Qualifier("natsSubscriberScope") private val natsSubscriberScope: CoroutineScope
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -73,7 +73,7 @@ class NatsChatEventSubscriber(
     }
 
     private suspend fun handleEvent(msg: Message) {
-        val root = objectMapper.readTree(msg.data)
+        val root = jsonMapper.readTree(msg.data)
         val eventType = root.get("eventType")?.asText()
             ?: root.get("type")?.asText()
         if (eventType != null && eventType != "message.created") return
@@ -99,7 +99,11 @@ class NatsChatEventSubscriber(
     private suspend fun resolveMemberIds(payload: JsonNode, chatId: UUID): List<UUID> {
         val embedded = payload.get("memberIds")
         if (embedded != null && embedded.isArray && embedded.size() > 0) {
-            return embedded.map { UUID.fromString(it.asText()) }
+            return buildList {
+                for (node in embedded) {
+                    add(UUID.fromString(node.asText()))
+                }
+            }
         }
         return chatMemberLookup.findMemberIds(chatId)
     }

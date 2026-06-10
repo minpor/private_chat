@@ -2,7 +2,7 @@ package chat.privatechat.infrastructure.redis
 
 import chat.privatechat.domain.DraftSnapshot
 import chat.privatechat.domain.ports.DraftRepository
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.json.JsonMapper
 import kotlinx.coroutines.reactor.awaitSingleOrNull
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate
 import org.springframework.stereotype.Repository
@@ -12,11 +12,11 @@ import java.util.UUID
 @Repository
 class RedisDraftRepository(
     private val redisTemplate: ReactiveStringRedisTemplate,
-    private val objectMapper: ObjectMapper
+    private val jsonMapper: JsonMapper
 ) : DraftRepository {
 
     override suspend fun save(snapshot: DraftSnapshot, ttl: Duration) {
-        val json = objectMapper.writeValueAsString(snapshot)
+        val json = jsonMapper.writeValueAsString(snapshot)
         val mainKey = DraftRedisKeys.userChatKey(snapshot.userId, snapshot.chatId)
         redisTemplate.opsForValue().set(mainKey, json, ttl).awaitSingleOrNull()
 
@@ -28,7 +28,7 @@ class RedisDraftRepository(
     override suspend fun findByUserAndChat(userId: UUID, chatId: UUID): DraftSnapshot? {
         val key = DraftRedisKeys.userChatKey(userId, chatId)
         val json = redisTemplate.opsForValue().get(key).awaitSingleOrNull() ?: return null
-        return objectMapper.readValue(json, DraftSnapshot::class.java)
+        return jsonMapper.readValue(json, DraftSnapshot::class.java)
     }
 
     override suspend fun findByDraftId(draftId: UUID): DraftSnapshot? {
