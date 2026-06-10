@@ -4,7 +4,7 @@ import chat.privatechat.domain.DraftSnapshot
 import chat.privatechat.domain.IdGenerator
 import chat.privatechat.domain.Message
 import chat.privatechat.domain.OutboxEvent
-import chat.privatechat.domain.ports.ChatRepository
+import chat.privatechat.domain.ports.ChatMemberLookup
 import chat.privatechat.domain.ports.MessageRepository
 import chat.privatechat.domain.ports.OutboxRepository
 import chat.privatechat.infrastructure.observability.ChatMetrics
@@ -26,7 +26,7 @@ import java.util.UUID
 class MessageCommandService(
     private val messageRepository: MessageRepository,
     private val outboxRepository: OutboxRepository,
-    private val chatRepository: ChatRepository,
+    private val chatMemberLookup: ChatMemberLookup,
     private val draftService: DraftService,
     private val rateLimitService: RateLimitService,
     private val idGenerator: IdGenerator,
@@ -105,7 +105,7 @@ class MessageCommandService(
             deletedAt = null
         )
         val saved = messageRepository.insertForSender(message)
-        val memberIds = chatRepository.findMembers(chatId).map { it.userId }
+        val memberIds = chatMemberLookup.findMemberIds(chatId)
         outboxRepository.insert(buildOutboxEvent(saved, memberIds, now))
         chatMetrics.recordMessageAccepted(source)
         return saved

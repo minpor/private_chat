@@ -3,6 +3,7 @@ package chat.privatechat.application
 import chat.privatechat.domain.Chat
 import chat.privatechat.domain.ChatType
 import chat.privatechat.domain.IdGenerator
+import chat.privatechat.domain.ports.ChatMemberLookup
 import chat.privatechat.domain.ports.ChatRepository
 import chat.privatechat.domain.ports.UserRepository
 import org.springframework.stereotype.Service
@@ -16,6 +17,7 @@ import java.util.UUID
 class ChatService(
     private val chatRepository: ChatRepository,
     private val userRepository: UserRepository,
+    private val chatMemberLookup: ChatMemberLookup,
     private val idGenerator: IdGenerator
 ) {
     suspend fun createDirectChat(requesterId: UUID, otherUsername: String): Chat {
@@ -23,7 +25,10 @@ class ChatService(
             ?: throw UserNotFoundException(otherUsername)
         require(requesterId != otherUser.id) { "Cannot create direct chat with yourself" }
 
-        chatRepository.findDirectChatBetween(requesterId, otherUser.id)?.let { return it }
+        chatRepository.findDirectChatBetween(requesterId, otherUser.id)?.let { chat ->
+            chatMemberLookup.remember(chat.id, listOf(requesterId, otherUser.id))
+            return chat
+        }
 
         val chat = Chat(
             id = idGenerator.nextId(),
@@ -32,7 +37,10 @@ class ChatService(
             createdBy = requesterId,
             createdAt = Instant.now()
         )
-        return chatRepository.insert(chat, listOf(requesterId, otherUser.id))
+        val memberIds = listOf(requesterId, otherUser.id)
+        val inserted = chatRepository.insert(chat, memberIds)
+        chatMemberLookup.remember(inserted.id, memberIds)
+        return inserted
     }
 
     suspend fun getChat(chatId: UUID, userId: UUID): Chat {

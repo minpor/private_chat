@@ -47,6 +47,8 @@ management:
 app:
   nats:
     url: ${NATS_URL:nats://localhost:4222}
+  chat-member-cache:
+    ttl-minutes: ${CHAT_MEMBER_CACHE_TTL_MINUTES:1440}
   draft:
     ttl-minutes: ${DRAFT_TTL_MINUTES:30}
     patch-rate-limit-per-second: ${DRAFT_PATCH_RATE_LIMIT:20}

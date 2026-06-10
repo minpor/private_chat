@@ -76,6 +76,34 @@ CREATE DATABASE private_chat OWNER private_chat;
 
 Redis: `redis-server` на порту 6379 (обычно стартует автоматически после `apt-get install redis-server`).
 
+### PostgreSQL (облегчённый профиль)
+
+После кэша участников чата в Redis PostgreSQL на 2k TPS потребляет **~3 CPU** (раньше ~4.5) и не является узким местом. Агрессивный тюнинг под write burst можно ослабить.
+
+| Параметр | Было (load-test) | Рекомендация |
+|----------|------------------|--------------|
+| `shared_buffers` | 4 GB | **1 GB** |
+| `max_connections` | 250 | **150** |
+| `work_mem` | 8 MB | **4 MB** |
+| `max_wal_size` | 4 GB | **1 GB** |
+| `effective_cache_size` | 24 GB | **8 GB** (только planner) |
+| `R2DBC_POOL_MAX_SIZE` | 110 | **110** |
+
+Готовый drop-in: [`config/postgresql/private-chat-light.conf`](config/postgresql/private-chat-light.conf)
+
+```bash
+sudo cp config/postgresql/private-chat-light.conf /etc/postgresql/16/main/conf.d/
+sudo systemctl reload postgresql
+```
+
+Проверка:
+
+```bash
+psql -U private_chat -d private_chat -c "SHOW shared_buffers; SHOW max_connections;"
+```
+
+Перед нагрузочным тестом убедитесь, что `R2DBC_POOL_MAX_SIZE` в `.env` не превышает `max_connections` минус запас (~30) для служебных подключений.
+
 ## Конфигурация
 
 ```bash

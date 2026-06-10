@@ -1,6 +1,7 @@
 package chat.privatechat.config
 
 import chat.privatechat.infrastructure.nats.OutboxProperties
+import chat.privatechat.infrastructure.redis.ChatMemberCacheProperties
 import chat.privatechat.infrastructure.redis.DraftProperties
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -11,7 +12,11 @@ import org.springframework.context.annotation.Configuration
 import java.util.concurrent.Executors
 
 @Configuration
-@EnableConfigurationProperties(DraftProperties::class, OutboxProperties::class)
+@EnableConfigurationProperties(
+    ChatMemberCacheProperties::class,
+    DraftProperties::class,
+    OutboxProperties::class
+)
 class OutboxConfig {
 
     @Bean

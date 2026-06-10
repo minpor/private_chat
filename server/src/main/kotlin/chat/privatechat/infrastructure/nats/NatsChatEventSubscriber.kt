@@ -2,7 +2,7 @@ package chat.privatechat.infrastructure.nats
 
 import chat.privatechat.api.ws.WsFrameFactory
 import chat.privatechat.api.ws.WsSessionRegistry
-import chat.privatechat.domain.ports.ChatRepository
+import chat.privatechat.domain.ports.ChatMemberLookup
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.nats.client.Connection
@@ -29,7 +29,7 @@ import java.util.UUID
 class NatsChatEventSubscriber(
     private val connection: Connection,
     private val jetStreamSetup: JetStreamSetup,
-    private val chatRepository: ChatRepository,
+    private val chatMemberLookup: ChatMemberLookup,
     private val wsSessionRegistry: WsSessionRegistry,
     private val objectMapper: ObjectMapper,
     @Qualifier("natsSubscriberScope") private val natsSubscriberScope: CoroutineScope
@@ -101,6 +101,6 @@ class NatsChatEventSubscriber(
         if (embedded != null && embedded.isArray && embedded.size() > 0) {
             return embedded.map { UUID.fromString(it.asText()) }
         }
-        return chatRepository.findMembers(chatId).map { it.userId }
+        return chatMemberLookup.findMemberIds(chatId)
     }
 }

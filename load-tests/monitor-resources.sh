@@ -7,7 +7,7 @@ OUT="${1:-/tmp/load-test-resources.tsv}"
 INTERVAL="${2:-1}"
 DURATION="${3:-130}"
 
-PG_SHARED_BUFFERS_MB="${PG_SHARED_BUFFERS_MB:-4096}"
+PG_SHARED_BUFFERS_MB="${PG_SHARED_BUFFERS_MB:-1024}"
 PG_PRIVATE_MB_PER_CONN="${PG_PRIVATE_MB_PER_CONN:-20}"
 NPROC="$(nproc 2>/dev/null || echo 1)"
 CLK_TCK="$(getconf CLK_TCK 2>/dev/null || echo 100)"
