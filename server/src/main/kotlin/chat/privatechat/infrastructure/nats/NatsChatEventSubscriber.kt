@@ -90,9 +90,17 @@ class NatsChatEventSubscriber(
         val text = payload.get("text").asText()
         val createdAt = payload.get("createdAt").asText()
 
-        val members = chatRepository.findMembers(chatId).map { it.userId }
+        val members = resolveMemberIds(payload, chatId)
         val frame = WsFrameFactory.messageNewFromEvent(messageId, chatId, senderId, text, createdAt)
         wsSessionRegistry.broadcastToUsers(members, frame)
         msg.ack()
+    }
+
+    private suspend fun resolveMemberIds(payload: JsonNode, chatId: UUID): List<UUID> {
+        val embedded = payload.get("memberIds")
+        if (embedded != null && embedded.isArray && embedded.size() > 0) {
+            return embedded.map { UUID.fromString(it.asText()) }
+        }
+        return chatRepository.findMembers(chatId).map { it.userId }
     }
 }

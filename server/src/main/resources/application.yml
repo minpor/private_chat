@@ -54,7 +54,9 @@ app:
     message-rate-limit-per-minute: ${MESSAGE_RATE_LIMIT:30}
   outbox:
     poll-interval-ms: ${OUTBOX_POLL_INTERVAL_MS:500}
-    batch-size: ${OUTBOX_BATCH_SIZE:100}
+    batch-size: ${OUTBOX_BATCH_SIZE:500}
+    publish-parallelism: ${OUTBOX_PUBLISH_PARALLELISM:8}
+    busy-backoff-ms: ${OUTBOX_BUSY_BACKOFF_MS:5}
   jwt:
     secret: ${JWT_SECRET:change-me-to-random-256-bit-string-min-32-chars}
     access-ttl-minutes: ${JWT_ACCESS_TTL_MINUTES:15}

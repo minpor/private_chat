@@ -43,6 +43,34 @@ estimate_postgres_mem_mb() {
   fi
 }
 
+is_java_pid() {
+  local pid="$1"
+  [[ -r "/proc/$pid/comm" ]] || return 1
+  [[ "$(cat "/proc/$pid/comm" 2>/dev/null)" == "java" ]]
+}
+
+# Spring Boot: ./gradlew bootRun (main class) or java -jar private-chat-server.jar.
+find_app_pids() {
+  local pattern pid seen=""
+  local patterns=(
+    "private-chat-server\\.jar"
+    "chat\\.privatechat\\.PrivateChatApplicationKt"
+    "chat\\.privatechat\\.PrivateChatApplication"
+  )
+  if [[ -n "${APP_MONITOR_PATTERN:-}" ]]; then
+    patterns=("$APP_MONITOR_PATTERN")
+  fi
+  for pattern in "${patterns[@]}"; do
+    while IFS= read -r pid; do
+      [[ -z "$pid" ]] && continue
+      is_java_pid "$pid" || continue
+      [[ " $seen " == *" $pid "* ]] && continue
+      seen+="$pid "
+      echo "$pid"
+    done < <(pgrep -f "$pattern" 2>/dev/null || true)
+  done
+}
+
 sample_component() {
   local ts_epoch="$1"
   local ts="$2"
@@ -50,7 +78,11 @@ sample_component() {
   local pattern="$4"
 
   local pids
-  pids=$(pgrep -f "$pattern" 2>/dev/null || true)
+  if [[ "$component" == "app" ]]; then
+    pids=$(find_app_pids | tr '\n' ' ')
+  else
+    pids=$(pgrep -f "$pattern" 2>/dev/null || true)
+  fi
   if [[ -z "$pids" ]]; then
     echo -e "${ts_epoch}\t${ts}\t${component}\t0\t0.0\t0.0\t0.000\t0\t\t" >> "$OUT"
     return
@@ -98,7 +130,7 @@ end=$((SECONDS + DURATION))
 while (( SECONDS < end )); do
   ts_epoch=$(date +%s)
   ts=$(date +%H:%M:%S)
-  sample_component "$ts_epoch" "$ts" "app" "chat.privatechat.PrivateChatApplicationKt"
+  sample_component "$ts_epoch" "$ts" "app" ""
   sample_component "$ts_epoch" "$ts" "postgres" "postgres: 16/main"
   sample_component "$ts_epoch" "$ts" "redis" "redis-server 127.0.0.1:6379"
   sample_component "$ts_epoch" "$ts" "nats" "nats-server"

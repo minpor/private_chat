@@ -4,6 +4,7 @@ import chat.privatechat.domain.DraftSnapshot
 import chat.privatechat.domain.IdGenerator
 import chat.privatechat.domain.Message
 import chat.privatechat.domain.OutboxEvent
+import chat.privatechat.domain.ports.ChatRepository
 import chat.privatechat.domain.ports.MessageRepository
 import chat.privatechat.domain.ports.OutboxRepository
 import chat.privatechat.infrastructure.observability.ChatMetrics
@@ -25,6 +26,7 @@ import java.util.UUID
 class MessageCommandService(
     private val messageRepository: MessageRepository,
     private val outboxRepository: OutboxRepository,
+    private val chatRepository: ChatRepository,
     private val draftService: DraftService,
     private val rateLimitService: RateLimitService,
     private val idGenerator: IdGenerator,
@@ -103,12 +105,17 @@ class MessageCommandService(
             deletedAt = null
         )
         val saved = messageRepository.insertForSender(message)
-        outboxRepository.insert(buildOutboxEvent(saved, now))
+        val memberIds = chatRepository.findMembers(chatId).map { it.userId }
+        outboxRepository.insert(buildOutboxEvent(saved, memberIds, now))
         chatMetrics.recordMessageAccepted(source)
         return saved
     }
 
-    private fun buildOutboxEvent(message: Message, createdAt: Instant): OutboxEvent =
+    private fun buildOutboxEvent(
+        message: Message,
+        memberIds: List<UUID>,
+        createdAt: Instant
+    ): OutboxEvent =
         OutboxEvent(
             id = idGenerator.nextId(),
             eventType = EVENT_MESSAGE_CREATED,
@@ -118,7 +125,8 @@ class MessageCommandService(
                     "chatId" to message.chatId.toString(),
                     "senderId" to message.senderId.toString(),
                     "text" to message.body,
-                    "createdAt" to message.createdAt.toString()
+                    "createdAt" to message.createdAt.toString(),
+                    "memberIds" to memberIds.map { it.toString() }
                 )
             ),
             createdAt = createdAt

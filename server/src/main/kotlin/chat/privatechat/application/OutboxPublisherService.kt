@@ -1,5 +1,6 @@
 package chat.privatechat.application
 
+import chat.privatechat.domain.OutboxEvent
 import chat.privatechat.infrastructure.nats.NatsEventPublisher
 import chat.privatechat.infrastructure.observability.ChatMetrics
 import chat.privatechat.infrastructure.nats.OutboxProperties
@@ -7,9 +8,14 @@ import jakarta.annotation.PostConstruct
 import jakarta.annotation.PreDestroy
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Service
@@ -56,18 +62,31 @@ class OutboxPublisherService(
         val events = outboxPublishSupport.lockBatch(outboxProperties.batchSize)
         if (events.isEmpty()) return false
 
-        for (event in events) {
-            natsEventPublisher.publish(event.payload.toByteArray(Charsets.UTF_8))
+        val publishedIds = publishEvents(events)
+        if (publishedIds.isNotEmpty()) {
+            outboxPublishSupport.markBatch(publishedIds, Instant.now())
+            chatMetrics.recordOutboxPublished(publishedIds.size)
+            log.debug("Published {} outbox events to NATS", publishedIds.size)
         }
-        outboxPublishSupport.markBatch(events.map { it.id }, Instant.now())
-        chatMetrics.recordOutboxPublished(events.size)
-        log.debug("Published {} outbox events to NATS", events.size)
 
-        delay(BUSY_BACKOFF_MS)
+        if (outboxProperties.busyBackoffMs > 0) {
+            delay(outboxProperties.busyBackoffMs)
+        }
         return true
     }
 
-    companion object {
-        private const val BUSY_BACKOFF_MS = 50L
+    private suspend fun publishEvents(events: List<OutboxEvent>): List<java.util.UUID> {
+        val parallelism = outboxProperties.publishParallelism.coerceAtLeast(1)
+        val semaphore = Semaphore(parallelism)
+        return coroutineScope {
+            events.map { event ->
+                async {
+                    semaphore.withPermit {
+                        natsEventPublisher.publish(event.payload.toByteArray(Charsets.UTF_8))
+                        event.id
+                    }
+                }
+            }.awaitAll()
+        }
     }
 }
