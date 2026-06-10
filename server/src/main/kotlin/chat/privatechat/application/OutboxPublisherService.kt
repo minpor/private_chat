@@ -2,6 +2,7 @@ package chat.privatechat.application
 
 import chat.privatechat.domain.ports.OutboxRepository
 import chat.privatechat.infrastructure.nats.NatsEventPublisher
+import chat.privatechat.infrastructure.observability.ChatMetrics
 import chat.privatechat.infrastructure.nats.OutboxProperties
 import jakarta.annotation.PostConstruct
 import jakarta.annotation.PreDestroy
@@ -24,7 +25,8 @@ class OutboxPublisherService(
     private val outboxRepository: OutboxRepository,
     private val natsEventPublisher: NatsEventPublisher,
     private val outboxProperties: OutboxProperties,
-    private val outboxScope: CoroutineScope
+    private val outboxScope: CoroutineScope,
+    private val chatMetrics: ChatMetrics
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private var publisherJob: Job? = null
@@ -58,6 +60,7 @@ class OutboxPublisherService(
             natsEventPublisher.publish(event.payload.toByteArray(Charsets.UTF_8))
             outboxRepository.markPublished(event.id, publishedAt)
         }
+        chatMetrics.recordOutboxPublished(events.size)
         log.debug("Published {} outbox events to NATS", events.size)
     }
 }

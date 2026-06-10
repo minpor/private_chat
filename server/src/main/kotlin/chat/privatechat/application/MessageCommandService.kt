@@ -6,6 +6,8 @@ import chat.privatechat.domain.Message
 import chat.privatechat.domain.OutboxEvent
 import chat.privatechat.domain.ports.MessageRepository
 import chat.privatechat.domain.ports.OutboxRepository
+import chat.privatechat.infrastructure.observability.ChatMetrics
+import chat.privatechat.infrastructure.observability.ChatMetrics.MessageSource
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -27,7 +29,8 @@ class MessageCommandService(
     private val draftService: DraftService,
     private val rateLimitService: RateLimitService,
     private val idGenerator: IdGenerator,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val chatMetrics: ChatMetrics
 ) {
     @Transactional
     suspend fun sendDirectMessage(
@@ -45,7 +48,8 @@ class MessageCommandService(
             senderId = senderId,
             clientMessageId = clientMessageId,
             body = text,
-            replyTo = replyTo
+            replyTo = replyTo,
+            source = MessageSource.DIRECT
         )
     }
 
@@ -69,7 +73,8 @@ class MessageCommandService(
             senderId = snapshot.userId,
             clientMessageId = clientMessageId,
             body = snapshot.text,
-            replyTo = null
+            replyTo = null,
+            source = MessageSource.DRAFT
         )
         draftService.deleteAfterCommit(snapshot)
         return message
@@ -80,7 +85,8 @@ class MessageCommandService(
         senderId: UUID,
         clientMessageId: UUID,
         body: String,
-        replyTo: UUID?
+        replyTo: UUID?,
+        source: MessageSource
     ): Message {
         messageRepository.findByClientMessageId(chatId, clientMessageId)?.let { return it }
 
@@ -103,6 +109,7 @@ class MessageCommandService(
         )
         val saved = messageRepository.insert(message)
         outboxRepository.insert(buildOutboxEvent(saved, now))
+        chatMetrics.recordMessageAccepted(source)
         return saved
     }
 

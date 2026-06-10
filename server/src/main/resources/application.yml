@@ -4,24 +4,45 @@ server:
 spring:
   application:
     name: private-chat
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:default}
   flyway:
     enabled: false
   r2dbc:
     url: r2dbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:private_chat}
     username: ${DB_USER:private_chat}
     password: ${DB_PASSWORD:your_password}
+    pool:
+      enabled: true
+      initial-size: ${R2DBC_POOL_INITIAL_SIZE:10}
+      max-size: ${R2DBC_POOL_MAX_SIZE:50}
+      max-idle-time: ${R2DBC_POOL_MAX_IDLE_TIME:30m}
+      max-acquire-time: ${R2DBC_POOL_MAX_ACQUIRE_TIME:5s}
+      max-create-connection-time: ${R2DBC_POOL_MAX_CREATE_TIME:5s}
   data:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      lettuce:
+        pool:
+          max-active: ${REDIS_POOL_MAX_ACTIVE:32}
+          max-idle: ${REDIS_POOL_MAX_IDLE:16}
+          min-idle: ${REDIS_POOL_MIN_IDLE:4}
+
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
   endpoint:
     health:
       show-details: when_authorized
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
 
 app:
   nats:
@@ -38,6 +59,14 @@ app:
     secret: ${JWT_SECRET:change-me-to-random-256-bit-string-min-32-chars}
     access-ttl-minutes: ${JWT_ACCESS_TTL_MINUTES:15}
     refresh-ttl-days: ${JWT_REFRESH_TTL_DAYS:7}
+  r2dbc:
+    read-replica:
+      enabled: ${DB_READ_REPLICA_ENABLED:false}
+      host: ${DB_READ_REPLICA_HOST:}
+      port: ${DB_READ_REPLICA_PORT:5432}
+      database: ${DB_READ_REPLICA_NAME:}
+      username: ${DB_READ_REPLICA_USER:}
+      password: ${DB_READ_REPLICA_PASSWORD:}
 
 logging:
   level:

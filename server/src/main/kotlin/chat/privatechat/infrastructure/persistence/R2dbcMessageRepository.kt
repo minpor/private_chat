@@ -3,6 +3,7 @@ package chat.privatechat.infrastructure.persistence
 import chat.privatechat.domain.Message
 import chat.privatechat.domain.ports.MessageRepository
 import kotlinx.coroutines.reactor.awaitSingle
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.r2dbc.core.DatabaseClient
 import org.springframework.r2dbc.core.awaitOneOrNull
 import org.springframework.stereotype.Repository
@@ -11,11 +12,12 @@ import java.util.UUID
 
 @Repository
 class R2dbcMessageRepository(
-    private val databaseClient: DatabaseClient
+    private val databaseClient: DatabaseClient,
+    @Qualifier("readDatabaseClient") private val readDatabaseClient: DatabaseClient
 ) : MessageRepository {
 
     override suspend fun findById(chatId: UUID, messageId: UUID): Message? =
-        databaseClient.sql(
+        readDatabaseClient.sql(
             """
             SELECT id, chat_id, sender_id, client_msg_id, body, reply_to, created_at, deleted_at
             FROM messages
@@ -78,7 +80,7 @@ class R2dbcMessageRepository(
             """.trimIndent()
         }
 
-        var spec = databaseClient.sql(sql)
+        var spec = readDatabaseClient.sql(sql)
             .bind("chat_id", chatId)
             .bind("limit", limit)
         if (before != null) {

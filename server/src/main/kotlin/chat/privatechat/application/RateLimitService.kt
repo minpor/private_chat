@@ -1,5 +1,7 @@
 package chat.privatechat.application
 
+import chat.privatechat.infrastructure.observability.ChatMetrics
+import chat.privatechat.infrastructure.observability.ChatMetrics.RateLimitOperation
 import chat.privatechat.infrastructure.redis.DraftProperties
 import kotlinx.coroutines.reactor.awaitSingleOrNull
 import org.springframework.data.domain.Range
@@ -14,14 +16,16 @@ import java.util.UUID
 @Service
 class RateLimitService(
     private val redisTemplate: ReactiveStringRedisTemplate,
-    private val draftProperties: DraftProperties
+    private val draftProperties: DraftProperties,
+    private val chatMetrics: ChatMetrics
 ) {
     suspend fun checkPatchLimit(userId: UUID, chatId: UUID) {
         val key = "ratelimit:patch:$userId:$chatId"
         checkSlidingWindow(
             key = key,
             window = Duration.ofSeconds(1),
-            limit = draftProperties.patchRateLimitPerSecond
+            limit = draftProperties.patchRateLimitPerSecond,
+            operation = RateLimitOperation.PATCH
         )
     }
 
@@ -30,7 +34,8 @@ class RateLimitService(
         checkSlidingWindow(
             key = key,
             window = Duration.ofMinutes(1),
-            limit = draftProperties.commitRateLimitPerMinute
+            limit = draftProperties.commitRateLimitPerMinute,
+            operation = RateLimitOperation.COMMIT
         )
     }
 
@@ -39,11 +44,17 @@ class RateLimitService(
         checkSlidingWindow(
             key = key,
             window = Duration.ofMinutes(1),
-            limit = draftProperties.messageRateLimitPerMinute
+            limit = draftProperties.messageRateLimitPerMinute,
+            operation = RateLimitOperation.MESSAGE
         )
     }
 
-    private suspend fun checkSlidingWindow(key: String, window: Duration, limit: Int) {
+    private suspend fun checkSlidingWindow(
+        key: String,
+        window: Duration,
+        limit: Int,
+        operation: RateLimitOperation
+    ) {
         val now = System.currentTimeMillis()
         val windowStart = now - window.toMillis()
         val member = "$now:${UUID.randomUUID()}"
@@ -56,6 +67,7 @@ class RateLimitService(
         redisTemplate.expire(key, window.plusSeconds(1)).awaitSingleOrNull()
 
         if (count > limit) {
+            chatMetrics.recordRateLimitExceeded(operation)
             throw RateLimitExceededException(retryAfterSeconds = window.seconds.coerceAtLeast(1))
         }
     }

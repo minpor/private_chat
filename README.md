@@ -96,6 +96,10 @@ export $(grep -v '^#' .env | xargs)
 
 Health: `GET http://localhost:8080/actuator/health`
 
+Метрики (Prometheus): `GET http://localhost:8080/actuator/prometheus`
+
+Structured logging (JSON): `SPRING_PROFILES_ACTIVE=json ./gradlew :server:bootRun`
+
 Документация из KDoc:
 
 ```bash
@@ -176,6 +180,45 @@ curl -s -X POST "http://localhost:8080/api/v1/chats/$CHAT_ID/drafts/$DRAFT_ID/co
 ```
 
 Ответы сервера: `draft.started`, `draft.patch.ack`, `message.accepted`, `message.new` (всем участникам чата).
+
+## Read replica (опционально)
+
+Для разгрузки primary PostgreSQL чтение истории (`GET /messages`) можно направить на replica:
+
+```bash
+DB_READ_REPLICA_ENABLED=true
+DB_READ_REPLICA_HOST=localhost
+DB_READ_REPLICA_PORT=5433
+# DB_READ_REPLICA_USER / DB_READ_REPLICA_PASSWORD — если отличаются от primary
+```
+
+Запись, идемпотентность и транзакции всегда идут на primary (`DB_HOST`).
+
+## Нагрузочный тест (k6)
+
+Цель фазы 3: **2k TPS** на `POST /messages`. Перед прогоном поднимите rate limit:
+
+```bash
+export MESSAGE_RATE_LIMIT=200000
+export $(grep -v '^#' .env | xargs)
+./gradlew :server:bootRun
+```
+
+В другом терминале:
+
+```bash
+# установка: https://grafana.com/docs/k6/latest/set-up/install-k6/
+k6 run load-tests/message-write.k6.js
+```
+
+Параметры:
+
+| Переменная | По умолчанию | Описание |
+|------------|--------------|----------|
+| `BASE_URL` | `http://localhost:8080` | URL сервера |
+| `TARGET_TPS` | `2000` | Целевой RPS |
+| `DURATION` | `2m` | Длительность сценария |
+| `LOAD_TEST_TOKEN` / `LOAD_TEST_CHAT_ID` | — | Пропустить setup, использовать готовые |
 
 ## Gradle-задачи
 
