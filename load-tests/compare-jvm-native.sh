@@ -89,7 +89,7 @@ run_measured() {
   export APP_SERVER_PID="$PID"
   export K6_PHASE=measured
   export JVM_WARMUP_SEC=0
-  export MONITOR_SEC=135
+  export MONITOR_SEC="${MONITOR_SEC:-150}"
   export BASE_URL="http://127.0.0.1:${PORT}"
   "$ROOT/load-tests/run-with-monitoring.sh"
   cp "$ROOT/load-tests/results/latest-summary.json" \
@@ -157,6 +157,7 @@ NATIVE_SUMMARY="$ROOT/load-tests/results/latest-native-summary.json"
 
 python3 - "$JVM_SUMMARY" "$NATIVE_SUMMARY" "$ROOT/load-tests/results/jvm-vs-native-comparison.md" <<'PY'
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -204,8 +205,9 @@ def fmt_cpu_avg(v):
 lines = [
     "# JVM vs Native (fair protocol)",
     "",
-    "Per runtime: **truncate DB + flush Redis** → start server → idle **15s** →",
-    "k6 warmup **30s @ 200 TPS** → measured **2m @ 2000 TPS** (monitored).",
+    f"Per runtime: **truncate DB + flush Redis** → start server → idle **{os.environ.get('IDLE_WARMUP_SEC', '15')}s** →",
+    f"k6 warmup **{os.environ.get('WARMUP_DURATION', '30s')} @ {os.environ.get('WARMUP_TPS', '200')} TPS** → "
+    f"measured **{os.environ.get('DURATION', '2m')} @ {os.environ.get('TARGET_TPS', '2000')} TPS** (monitored).",
     "",
     "| Metric | JVM | Native |",
     "|--------|-----|--------|",

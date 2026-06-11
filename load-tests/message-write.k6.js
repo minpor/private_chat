@@ -15,6 +15,8 @@ const WARMUP_RATE = Number(__ENV.WARMUP_TPS || '200');
 const WARMUP_DURATION = __ENV.WARMUP_DURATION || '30s';
 const TARGET_RATE = Number(__ENV.TARGET_TPS || '2000');
 const DURATION = __ENV.DURATION || '2m';
+const MAX_VUS = Number(__ENV.MAX_VUS || String(Math.max(TARGET_RATE * 2, 2000)));
+const PREALLOCATED_VUS = Number(__ENV.PREALLOCATED_VUS || String(Math.min(TARGET_RATE, 5000)));
 
 function buildScenarios() {
   const scenarios = {};
@@ -24,8 +26,8 @@ function buildScenarios() {
       rate: WARMUP_RATE,
       timeUnit: '1s',
       duration: WARMUP_DURATION,
-      preAllocatedVUs: 50,
-      maxVUs: 200,
+      preAllocatedVUs: Math.min(WARMUP_RATE, 500),
+      maxVUs: Math.min(WARMUP_RATE * 2, 2000),
       exec: 'writeMessage',
       tags: { phase: 'warmup' }
     };
@@ -36,8 +38,8 @@ function buildScenarios() {
       rate: TARGET_RATE,
       timeUnit: '1s',
       duration: DURATION,
-      preAllocatedVUs: Math.min(TARGET_RATE, 1000),
-      maxVUs: Math.min(TARGET_RATE * 2, 2000),
+      preAllocatedVUs: PREALLOCATED_VUS,
+      maxVUs: MAX_VUS,
       exec: 'writeMessage',
       startTime: K6_PHASE === 'measured' ? '0s' : WARMUP_DURATION,
       tags: { phase: 'measured' }
