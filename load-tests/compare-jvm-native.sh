@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fair JVM vs native load test: same warmup protocol (BASELINE.md).
+# Fair JVM vs native load test: clean DB, warmup, measured run — repeat per runtime.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -11,6 +11,7 @@ PORT="8080"
 PID=""
 JVM_SUMMARY=""
 NATIVE_SUMMARY=""
+K6_EXIT=0
 
 cleanup() {
   if [[ -n "$PID" ]] && kill -0 "$PID" 2>/dev/null; then
@@ -27,6 +28,12 @@ stop_port() {
     kill $pids 2>/dev/null || true
     sleep 2
   fi
+}
+
+reset_data() {
+  cleanup
+  stop_port
+  "$ROOT/load-tests/reset-db.sh"
 }
 
 start_server() {
@@ -68,12 +75,21 @@ start_server() {
   return 1
 }
 
-run_load() {
+run_k6_warmup() {
+  local mode="$1"
+  export BASE_URL="http://127.0.0.1:${PORT}"
+  export K6_PHASE=warmup
+  echo "[$mode] k6 warmup (${WARMUP_DURATION:-30s} @ ${WARMUP_TPS:-200} TPS) ..."
+  k6 run "$ROOT/load-tests/message-write.k6.js"
+}
+
+run_measured() {
   local suffix="$1"
   export RESULT_SUFFIX="$suffix"
   export APP_SERVER_PID="$PID"
-  export MONITOR_SEC=170
-  export JVM_WARMUP_SEC=15
+  export K6_PHASE=measured
+  export JVM_WARMUP_SEC=0
+  export MONITOR_SEC=135
   export BASE_URL="http://127.0.0.1:${PORT}"
   "$ROOT/load-tests/run-with-monitoring.sh"
   cp "$ROOT/load-tests/results/latest-summary.json" \
@@ -82,20 +98,61 @@ run_load() {
     "$ROOT/load-tests/results/latest-${suffix}-summary.md"
 }
 
+run_mode() {
+  local mode="$1"
+  local binary="$2"
+
+  echo ""
+  echo "========== ${mode^^}: reset DB + Redis =========="
+  reset_data
+
+  echo ""
+  echo "========== ${mode^^}: start server =========="
+  start_server "$mode" "$binary"
+
+  local idle_sec="${IDLE_WARMUP_SEC:-15}"
+  echo ""
+  echo "========== ${mode^^}: idle warmup (${idle_sec}s) =========="
+  sleep "$idle_sec"
+
+  echo ""
+  echo "========== ${mode^^}: k6 warmup =========="
+  run_k6_warmup "$mode"
+
+  echo ""
+  echo "========== ${mode^^}: measured load test =========="
+  if ! run_measured "$mode"; then
+    K6_EXIT=1
+    echo "[$mode] measured run: k6 thresholds failed (results saved anyway)"
+  fi
+}
+
 [[ -f "$JAR" ]] || { echo "Missing $JAR — run ./gradlew :server:bootJar"; exit 1; }
 [[ -f "$NATIVE" ]] || { echo "Missing $NATIVE — run ./gradlew :server:nativeCompile"; exit 1; }
 
+chmod +x "$ROOT/load-tests/reset-db.sh"
 chmod +x "$ROOT/load-tests/run-with-monitoring.sh"
 
-echo "=== JVM ==="
-start_server jvm "$JAR"
-run_load jvm || true
-JVM_SUMMARY="$ROOT/load-tests/results/latest-jvm-summary.json"
+RUN_TARGET="${1:-all}"
 
-echo ""
-echo "=== Native ==="
-start_server native "$NATIVE"
-run_load native || true
+case "$RUN_TARGET" in
+  jvm)
+    run_mode jvm "$JAR"
+    ;;
+  native)
+    run_mode native "$NATIVE"
+    ;;
+  all)
+    run_mode jvm "$JAR"
+    run_mode native "$NATIVE"
+    ;;
+  *)
+    echo "Usage: $0 [all|jvm|native]" >&2
+    exit 2
+    ;;
+esac
+
+JVM_SUMMARY="$ROOT/load-tests/results/latest-jvm-summary.json"
 NATIVE_SUMMARY="$ROOT/load-tests/results/latest-native-summary.json"
 
 python3 - "$JVM_SUMMARY" "$NATIVE_SUMMARY" "$ROOT/load-tests/results/jvm-vs-native-comparison.md" <<'PY'
@@ -112,7 +169,7 @@ def load(path):
 
 def parse_k6(text):
     m = {}
-    for line in text.splitlines():
+    for line in (text or "").splitlines():
         if "phase:measured" not in line:
             continue
         if "out of" in line:
@@ -145,9 +202,10 @@ def fmt_cpu_avg(v):
     return f"{v:.2f}" if isinstance(v, (int, float)) else v
 
 lines = [
-    "# JVM vs Native (warmup protocol)",
+    "# JVM vs Native (fair protocol)",
     "",
-    "Protocol: JVM idle **15s**, k6 warmup **30s @ 200 TPS**, measured **2m @ 2000 TPS**.",
+    "Per runtime: **truncate DB + flush Redis** → start server → idle **15s** →",
+    "k6 warmup **30s @ 200 TPS** → measured **2m @ 2000 TPS** (monitored).",
     "",
     "| Metric | JVM | Native |",
     "|--------|-----|--------|",
@@ -165,3 +223,5 @@ PY
 
 echo ""
 cat "$ROOT/load-tests/results/jvm-vs-native-comparison.md"
+
+exit "$K6_EXIT"

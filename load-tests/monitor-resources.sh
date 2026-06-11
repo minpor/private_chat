@@ -17,18 +17,21 @@ declare -A PREV_JIFFIES
 echo -e "ts_epoch\tts\tcomponent\tprocs\trss_sum_mb\tmem_est_mb\tcpu_cores\tthreads\tload1\tmem_avail_mb" > "$OUT"
 
 read_jiffies() {
-  local pid="$1"
-  awk '{print $14 + $15}' "/proc/$pid/stat" 2>/dev/null || echo 0
+  local pid="$1" v
+  v=$(awk '{print $14 + $15}' "/proc/$pid/stat" 2>/dev/null || true)
+  echo "${v:-0}"
 }
 
 read_rss_kb() {
-  local pid="$1"
-  awk '/^VmRSS:/ {print $2; exit}' "/proc/$pid/status" 2>/dev/null || echo 0
+  local pid="$1" v
+  v=$(awk '/^VmRSS:/ {print $2; exit}' "/proc/$pid/status" 2>/dev/null || true)
+  echo "${v:-0}"
 }
 
 read_threads() {
-  local pid="$1"
-  awk '/^Threads:/ {print $2; exit}' "/proc/$pid/status" 2>/dev/null || echo 0
+  local pid="$1" v
+  v=$(awk '/^Threads:/ {print $2; exit}' "/proc/$pid/status" 2>/dev/null || true)
+  echo "${v:-0}"
 }
 
 estimate_postgres_mem_mb() {

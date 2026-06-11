@@ -10,14 +10,16 @@ function uuidv4() {
 }
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
+const K6_PHASE = __ENV.K6_PHASE || 'all';
 const WARMUP_RATE = Number(__ENV.WARMUP_TPS || '200');
 const WARMUP_DURATION = __ENV.WARMUP_DURATION || '30s';
 const TARGET_RATE = Number(__ENV.TARGET_TPS || '2000');
 const DURATION = __ENV.DURATION || '2m';
 
-export const options = {
-  scenarios: {
-    warmup: {
+function buildScenarios() {
+  const scenarios = {};
+  if (K6_PHASE === 'all' || K6_PHASE === 'warmup') {
+    scenarios.warmup = {
       executor: 'constant-arrival-rate',
       rate: WARMUP_RATE,
       timeUnit: '1s',
@@ -26,8 +28,10 @@ export const options = {
       maxVUs: 200,
       exec: 'writeMessage',
       tags: { phase: 'warmup' }
-    },
-    message_writes: {
+    };
+  }
+  if (K6_PHASE === 'all' || K6_PHASE === 'measured') {
+    scenarios.message_writes = {
       executor: 'constant-arrival-rate',
       rate: TARGET_RATE,
       timeUnit: '1s',
@@ -35,14 +39,26 @@ export const options = {
       preAllocatedVUs: Math.min(TARGET_RATE, 1000),
       maxVUs: Math.min(TARGET_RATE * 2, 2000),
       exec: 'writeMessage',
-      startTime: WARMUP_DURATION,
+      startTime: K6_PHASE === 'measured' ? '0s' : WARMUP_DURATION,
       tags: { phase: 'measured' }
-    }
-  },
-  thresholds: {
+    };
+  }
+  return scenarios;
+}
+
+function buildThresholds() {
+  if (K6_PHASE === 'warmup') {
+    return {};
+  }
+  return {
     'http_req_failed{phase:measured}': ['rate<0.01'],
     'http_req_duration{phase:measured}': ['p(95)<500']
-  }
+  };
+}
+
+export const options = {
+  scenarios: buildScenarios(),
+  thresholds: buildThresholds()
 };
 
 function registerUser(username) {
