@@ -154,76 +154,19 @@ esac
 
 JVM_SUMMARY="$ROOT/load-tests/results/latest-jvm-summary.json"
 NATIVE_SUMMARY="$ROOT/load-tests/results/latest-native-summary.json"
+COMPARE_HTML="$ROOT/load-tests/results/jvm-vs-native-comparison.html"
 
-python3 - "$JVM_SUMMARY" "$NATIVE_SUMMARY" "$ROOT/load-tests/results/jvm-vs-native-comparison.md" <<'PY'
-import json
-import os
-import re
-import sys
-from pathlib import Path
+python3 "$ROOT/load-tests/analyze-resources.py" --compare \
+  "$JVM_SUMMARY" "$NATIVE_SUMMARY" \
+  --out "$COMPARE_HTML"
 
-def load(path):
-    p = Path(path)
-    if not p.exists():
-        return {}
-    return json.loads(p.read_text())
-
-def parse_k6(text):
-    m = {}
-    for line in (text or "").splitlines():
-        if "phase:measured" not in line:
-            continue
-        if "out of" in line:
-            rate = re.search(r"([\d.]+%)", line)
-            if rate:
-                m["errors"] = rate.group(1)
-        elif "p(95)=" in line:
-            p95 = re.search(r"p\(95\)=([^\s]+)", line)
-            if p95:
-                m["p95"] = p95.group(1)
-    return m
-
-jvm = load(sys.argv[1])
-native = load(sys.argv[2])
-jk = parse_k6(jvm.get("k6_tail", ""))
-nk = parse_k6(native.get("k6_tail", ""))
-
-def app_stats(data):
-    c = data.get("components", {}).get("app", {})
-    return (
-        c.get("cpu_cores_peak", "n/a"),
-        c.get("cpu_cores_avg", "n/a"),
-        c.get("mem_mb_peak", "n/a"),
-    )
-
-jcpu, jcpu_avg, jmem = app_stats(jvm)
-ncpu, ncpu_avg, nmem = app_stats(native)
-
-def fmt_cpu_avg(v):
-    return f"{v:.2f}" if isinstance(v, (int, float)) else v
-
-lines = [
-    "# JVM vs Native (fair protocol)",
-    "",
-    f"Per runtime: **truncate DB + flush Redis** → start server → idle **{os.environ.get('IDLE_WARMUP_SEC', '15')}s** →",
-    f"k6 warmup **{os.environ.get('WARMUP_DURATION', '30s')} @ {os.environ.get('WARMUP_TPS', '200')} TPS** → "
-    f"measured **{os.environ.get('DURATION', '2m')} @ {os.environ.get('TARGET_TPS', '2000')} TPS** (monitored).",
-    "",
-    "| Metric | JVM | Native |",
-    "|--------|-----|--------|",
-    f"| App CPU peak (cores) | {jcpu} | {ncpu} |",
-    f"| App CPU avg (cores) | {fmt_cpu_avg(jcpu_avg)} | {fmt_cpu_avg(ncpu_avg)} |",
-    f"| App RAM peak (MB) | {jmem} | {nmem} |",
-    f"| p95 latency (measured) | {jk.get('p95', 'n/a')} | {nk.get('p95', 'n/a')} |",
-    f"| Error rate (measured) | {jk.get('errors', 'n/a')} | {nk.get('errors', 'n/a')} |",
-    "",
-    "See `latest-jvm-summary.md` and `latest-native-summary.md` for full reports.",
-]
-Path(sys.argv[3]).write_text("\n".join(lines) + "\n")
-print(sys.argv[3])
-PY
+cp "$COMPARE_HTML" "$ROOT/load-tests/results/latest-comparison.html"
+cp "$ROOT/load-tests/results/jvm-vs-native-comparison.md" \
+  "$ROOT/load-tests/results/latest-comparison.md"
 
 echo ""
 cat "$ROOT/load-tests/results/jvm-vs-native-comparison.md"
+echo ""
+echo "HTML: $COMPARE_HTML"
 
 exit "$K6_EXIT"

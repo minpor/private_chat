@@ -7,7 +7,9 @@ LOAD_DIR="$ROOT/load-tests"
 STAMP="$(date +%Y-%m-%dT%H-%M-%S)${RESULT_SUFFIX:+-${RESULT_SUFFIX}}"
 OUT_DIR="$LOAD_DIR/results/$STAMP"
 TMP_TSV="$(mktemp /tmp/load-test-resources.XXXXXX.tsv)"
+TMP_CPU="$(mktemp /tmp/load-test-cpu-cores.XXXXXX.tsv)"
 TMP_K6="$(mktemp /tmp/load-test-k6.XXXXXX.log)"
+export CPU_CORES_OUT="$TMP_CPU"
 K6_PHASE="${K6_PHASE:-all}"
 MONITOR_SEC="${MONITOR_SEC:-}"
 JVM_WARMUP_SEC="${JVM_WARMUP_SEC:-15}"
@@ -50,24 +52,33 @@ wait "$MON_PID"
 
 cp "$TMP_TSV" "$OUT_DIR/samples.tsv"
 cp "$TMP_K6" "$OUT_DIR/k6.log"
+if [[ -f "$TMP_CPU" ]]; then
+  cp "$TMP_CPU" "$OUT_DIR/cpu-cores.tsv"
+fi
 
 python3 "$LOAD_DIR/analyze-resources.py" "$OUT_DIR/samples.tsv" \
   --k6-log "$OUT_DIR/k6.log" \
+  --cpu-cores "$OUT_DIR/cpu-cores.tsv" \
   --out-dir "$OUT_DIR" \
+  --runtime "${RESULT_SUFFIX:-}" \
   --nproc "$(nproc)"
 
 ln -sfn "$STAMP" "$LOAD_DIR/results/latest"
 cp "$OUT_DIR/summary.md" "$LOAD_DIR/results/latest-summary.md"
 cp "$OUT_DIR/summary.json" "$LOAD_DIR/results/latest-summary.json"
+cp "$OUT_DIR/report.html" "$LOAD_DIR/results/latest-report.html"
 
-rm -f "$TMP_TSV" "$TMP_K6"
+rm -f "$TMP_TSV" "$TMP_CPU" "$TMP_K6"
 
 echo ""
 echo "Saved:"
 echo "  $OUT_DIR/samples.tsv"
+echo "  $OUT_DIR/cpu-cores.tsv"
 echo "  $OUT_DIR/k6.log"
 echo "  $OUT_DIR/summary.md"
 echo "  $OUT_DIR/summary.json"
+echo "  $OUT_DIR/report.html"
 echo "  $LOAD_DIR/results/latest-summary.md"
+echo "  $LOAD_DIR/results/latest-report.html"
 
 exit "$K6_EXIT"

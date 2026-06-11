@@ -15,8 +15,11 @@ const WARMUP_RATE = Number(__ENV.WARMUP_TPS || '200');
 const WARMUP_DURATION = __ENV.WARMUP_DURATION || '30s';
 const TARGET_RATE = Number(__ENV.TARGET_TPS || '2000');
 const DURATION = __ENV.DURATION || '2m';
-const MAX_VUS = Number(__ENV.MAX_VUS || String(Math.max(TARGET_RATE * 2, 2000)));
-const PREALLOCATED_VUS = Number(__ENV.PREALLOCATED_VUS || String(Math.min(TARGET_RATE, 5000)));
+const DEFAULT_MAX_VUS = Math.max(TARGET_RATE * 4, 5000);
+const MAX_VUS = Number(__ENV.MAX_VUS || String(DEFAULT_MAX_VUS));
+const PREALLOCATED_VUS = Number(
+  __ENV.PREALLOCATED_VUS || String(Math.min(TARGET_RATE * 2, MAX_VUS))
+);
 
 function buildScenarios() {
   const scenarios = {};
