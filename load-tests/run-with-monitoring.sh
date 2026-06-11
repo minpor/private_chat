@@ -11,6 +11,8 @@ TMP_K6="$(mktemp /tmp/load-test-k6.XXXXXX.log)"
 MONITOR_SEC="${MONITOR_SEC:-170}"
 JVM_WARMUP_SEC="${JVM_WARMUP_SEC:-15}"
 K6_ARGS="${K6_ARGS:-}"
+# Optional: pin app process (set by compare-jvm-native.sh when server PID is known).
+export APP_SERVER_PID="${APP_SERVER_PID:-}"
 
 mkdir -p "$OUT_DIR" "$LOAD_DIR/results"
 

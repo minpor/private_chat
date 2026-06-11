@@ -49,11 +49,17 @@ is_java_pid() {
   [[ "$(cat "/proc/$pid/comm" 2>/dev/null)" == "java" ]]
 }
 
-# Spring Boot: ./gradlew bootRun (main class) or java -jar private-chat-server.jar.
+# Spring Boot: java -jar, GraalVM native binary, or ./gradlew bootRun.
 find_app_pids() {
+  if [[ -n "${APP_SERVER_PID:-}" ]] && kill -0 "$APP_SERVER_PID" 2>/dev/null; then
+    echo "$APP_SERVER_PID"
+    return 0
+  fi
+
   local pattern pid seen=""
   local patterns=(
     "private-chat-server\\.jar"
+    "nativeCompile/private-chat-server"
     "chat\\.privatechat\\.PrivateChatApplicationKt"
     "chat\\.privatechat\\.PrivateChatApplication"
   )

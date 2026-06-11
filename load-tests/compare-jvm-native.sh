@@ -71,11 +71,11 @@ start_server() {
 run_load() {
   local suffix="$1"
   export RESULT_SUFFIX="$suffix"
+  export APP_SERVER_PID="$PID"
   export MONITOR_SEC=170
   export JVM_WARMUP_SEC=15
   export BASE_URL="http://127.0.0.1:${PORT}"
   "$ROOT/load-tests/run-with-monitoring.sh"
-  JVM_SUMMARY="$ROOT/load-tests/results/latest-summary.json"
   cp "$ROOT/load-tests/results/latest-summary.json" \
     "$ROOT/load-tests/results/latest-${suffix}-summary.json"
   cp "$ROOT/load-tests/results/latest-summary.md" \
@@ -113,18 +113,16 @@ def load(path):
 def parse_k6(text):
     m = {}
     for line in text.splitlines():
-        if "phase:measured" in line and "http_req_duration" in line:
+        if "phase:measured" not in line:
+            continue
+        if "out of" in line:
+            rate = re.search(r"([\d.]+%)", line)
+            if rate:
+                m["errors"] = rate.group(1)
+        elif "p(95)=" in line:
             p95 = re.search(r"p\(95\)=([^\s]+)", line)
             if p95:
                 m["p95"] = p95.group(1)
-        if "phase:measured" in line and "http_req_failed" in line:
-            rate = re.search(r":\s+([\d.]+%)", line)
-            if rate:
-                m["errors"] = rate.group(1)
-        if line.strip().startswith("iterations"):
-            parts = line.split()
-            if len(parts) >= 2:
-                m["iterations"] = parts[1]
     return m
 
 jvm = load(sys.argv[1])
@@ -134,10 +132,17 @@ nk = parse_k6(native.get("k6_tail", ""))
 
 def app_stats(data):
     c = data.get("components", {}).get("app", {})
-    return c.get("cpu_cores_peak", "n/a"), c.get("mem_mb_peak", "n/a")
+    return (
+        c.get("cpu_cores_peak", "n/a"),
+        c.get("cpu_cores_avg", "n/a"),
+        c.get("mem_mb_peak", "n/a"),
+    )
 
-jcpu, jmem = app_stats(jvm)
-ncpu, nmem = app_stats(native)
+jcpu, jcpu_avg, jmem = app_stats(jvm)
+ncpu, ncpu_avg, nmem = app_stats(native)
+
+def fmt_cpu_avg(v):
+    return f"{v:.2f}" if isinstance(v, (int, float)) else v
 
 lines = [
     "# JVM vs Native (warmup protocol)",
@@ -147,6 +152,7 @@ lines = [
     "| Metric | JVM | Native |",
     "|--------|-----|--------|",
     f"| App CPU peak (cores) | {jcpu} | {ncpu} |",
+    f"| App CPU avg (cores) | {fmt_cpu_avg(jcpu_avg)} | {fmt_cpu_avg(ncpu_avg)} |",
     f"| App RAM peak (MB) | {jmem} | {nmem} |",
     f"| p95 latency (measured) | {jk.get('p95', 'n/a')} | {nk.get('p95', 'n/a')} |",
     f"| Error rate (measured) | {jk.get('errors', 'n/a')} | {nk.get('errors', 'n/a')} |",
