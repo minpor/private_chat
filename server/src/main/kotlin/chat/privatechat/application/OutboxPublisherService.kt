@@ -19,6 +19,7 @@ import kotlinx.coroutines.sync.withPermit
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Service
+import java.time.Duration
 import java.time.Instant
 
 /**
@@ -69,6 +70,8 @@ class OutboxPublisherService(
             log.debug("Published {} outbox events to NATS", publishedIds.size)
         }
 
+        chatMetrics.setOutboxBacklog(outboxPublishSupport.countUnpublished())
+
         if (outboxProperties.busyBackoffMs > 0) {
             delay(outboxProperties.busyBackoffMs)
         }
@@ -82,11 +85,24 @@ class OutboxPublisherService(
             events.map { event ->
                 async {
                     semaphore.withPermit {
-                        natsEventPublisher.publish(event.payload.toByteArray(Charsets.UTF_8))
-                        event.id
+                        publishOne(event)
                     }
                 }
-            }.awaitAll()
+            }.awaitAll().filterNotNull()
+        }
+    }
+
+    private suspend fun publishOne(event: OutboxEvent): java.util.UUID? {
+        val publishStarted = System.nanoTime()
+        return try {
+            natsEventPublisher.publish(event.payload.toByteArray(Charsets.UTF_8))
+            val publishDuration = Duration.ofNanos(System.nanoTime() - publishStarted)
+            chatMetrics.recordNatsPublishSuccess(publishDuration, event.createdAt)
+            event.id
+        } catch (ex: Exception) {
+            chatMetrics.recordNatsPublishFailed()
+            log.warn("Failed to publish outbox event {}", event.id, ex)
+            null
         }
     }
 }

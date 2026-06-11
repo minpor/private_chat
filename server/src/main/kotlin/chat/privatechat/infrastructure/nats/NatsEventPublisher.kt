@@ -2,7 +2,9 @@ package chat.privatechat.infrastructure.nats
 
 import io.nats.client.Connection
 import io.nats.client.JetStream
+import io.nats.client.api.PublishAck
 import jakarta.annotation.PostConstruct
+import kotlinx.coroutines.future.await
 import org.springframework.stereotype.Component
 
 @Component
@@ -18,7 +20,6 @@ class NatsEventPublisher(
         jetStream = connection.jetStream()
     }
 
-    fun publish(payload: ByteArray) {
-        jetStream.publish(NatsChatSubjects.EVENTS, payload)
-    }
+    suspend fun publish(payload: ByteArray): PublishAck =
+        jetStream.publishAsync(NatsChatSubjects.EVENTS, payload).await()
 }

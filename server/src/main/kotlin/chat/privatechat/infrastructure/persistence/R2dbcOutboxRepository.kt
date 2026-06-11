@@ -64,4 +64,14 @@ class R2dbcOutboxRepository(
             .rowsUpdated()
             .awaitSingle()
     }
+
+    override suspend fun countUnpublished(): Long =
+        databaseClient.sql(
+            """
+            SELECT COUNT(*) AS cnt FROM outbox WHERE published_at IS NULL
+            """.trimIndent()
+        )
+            .map { row, _ -> row.get("cnt", java.lang.Long::class.java)!!.toLong() }
+            .one()
+            .awaitSingle()
 }

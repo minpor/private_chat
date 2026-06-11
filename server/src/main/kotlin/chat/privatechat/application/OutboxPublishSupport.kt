@@ -18,4 +18,7 @@ class OutboxPublishSupport(
     @Transactional
     suspend fun markBatch(ids: List<UUID>, publishedAt: Instant) =
         outboxRepository.markPublishedBatch(ids, publishedAt)
+
+    suspend fun countUnpublished(): Long =
+        outboxRepository.countUnpublished()
 }

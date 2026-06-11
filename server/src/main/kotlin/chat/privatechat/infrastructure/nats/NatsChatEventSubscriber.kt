@@ -3,6 +3,7 @@ package chat.privatechat.infrastructure.nats
 import chat.privatechat.api.ws.WsFrameFactory
 import chat.privatechat.api.ws.WsSessionRegistry
 import chat.privatechat.domain.ports.ChatMemberLookup
+import chat.privatechat.infrastructure.observability.ChatMetrics
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import io.nats.client.Connection
@@ -19,6 +20,7 @@ import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
+import java.time.Instant
 import java.util.UUID
 
 /**
@@ -32,6 +34,7 @@ class NatsChatEventSubscriber(
     private val chatMemberLookup: ChatMemberLookup,
     private val wsSessionRegistry: WsSessionRegistry,
     private val jsonMapper: JsonMapper,
+    private val chatMetrics: ChatMetrics,
     @Qualifier("natsSubscriberScope") private val natsSubscriberScope: CoroutineScope
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -57,6 +60,7 @@ class NatsChatEventSubscriber(
                     try {
                         handleEvent(msg)
                     } catch (ex: RuntimeException) {
+                        chatMetrics.recordWsDeliveryFailed()
                         log.warn("Failed to deliver chat event", ex)
                     }
                 }
@@ -93,6 +97,7 @@ class NatsChatEventSubscriber(
         val members = resolveMemberIds(payload, chatId)
         val frame = WsFrameFactory.messageNewFromEvent(messageId, chatId, senderId, text, createdAt)
         wsSessionRegistry.broadcastToUsers(members, frame)
+        chatMetrics.recordWsDelivered(Instant.parse(createdAt), members.size)
         msg.ack()
     }
 

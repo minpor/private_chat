@@ -3,6 +3,7 @@ package chat.privatechat
 import com.tngtech.archunit.core.importer.ClassFileImporter
 import com.tngtech.archunit.core.importer.ImportOption
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
+import io.nats.client.JetStream
 import org.junit.jupiter.api.Test
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
@@ -37,6 +38,13 @@ class BlockingApiArchTest {
             .check(productionCode)
         noClasses()
             .should().callMethod(Flux::class.java, "blockLast")
+            .check(productionCode)
+    }
+
+    @Test
+    fun `must not call JetStream publish synchronously`() {
+        noClasses()
+            .should().callMethod(JetStream::class.java, "publish")
             .check(productionCode)
     }
 
