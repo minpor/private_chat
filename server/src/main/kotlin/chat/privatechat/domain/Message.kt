@@ -31,10 +31,16 @@ data class Message(
 
 /**
  * Событие transactional outbox для асинхронной доставки через NATS JetStream.
+ *
+ * [natsPayload] задаётся при insert (одна сериализация) или при чтении batch из PG.
  */
 data class OutboxEvent(
     val id: UUID,
     val eventType: String,
     val payload: String,
-    val createdAt: Instant
-)
+    val createdAt: Instant,
+    val natsPayload: ByteArray? = null
+) {
+    fun bytesForNats(): ByteArray =
+        natsPayload ?: payload.toByteArray(Charsets.UTF_8)
+}

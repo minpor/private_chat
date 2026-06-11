@@ -20,8 +20,9 @@ import java.util.concurrent.Executors
 class OutboxConfig {
 
     @Bean
-    fun outboxPublisherScope(): CoroutineScope {
-        val dispatcher = Executors.newFixedThreadPool(OUTBOX_PUBLISHER_THREADS) { runnable ->
+    fun outboxPublisherScope(outboxProperties: OutboxProperties): CoroutineScope {
+        val threads = outboxProperties.resolvedPublisherThreads()
+        val dispatcher = Executors.newFixedThreadPool(threads) { runnable ->
             Thread(runnable, "outbox-publisher").apply { isDaemon = true }
         }.asCoroutineDispatcher()
         return CoroutineScope(SupervisorJob() + dispatcher)
@@ -36,7 +37,6 @@ class OutboxConfig {
     }
 
     companion object {
-        private const val OUTBOX_PUBLISHER_THREADS = 6
         private const val NATS_SUBSCRIBER_THREADS = 2
     }
 }

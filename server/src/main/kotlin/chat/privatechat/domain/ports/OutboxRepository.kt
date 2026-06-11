@@ -15,4 +15,6 @@ interface OutboxRepository {
     suspend fun markPublishedBatch(ids: List<UUID>, publishedAt: Instant)
 
     suspend fun countUnpublished(): Long
+
+    suspend fun deletePublishedBefore(cutoff: Instant): Long
 }

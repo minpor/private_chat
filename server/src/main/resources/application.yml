@@ -14,8 +14,8 @@ spring:
     password: ${DB_PASSWORD:your_password}
     pool:
       enabled: true
-      initial-size: ${R2DBC_POOL_INITIAL_SIZE:10}
-      max-size: ${R2DBC_POOL_MAX_SIZE:150}
+      initial-size: ${R2DBC_POOL_INITIAL_SIZE:20}
+      max-size: ${R2DBC_POOL_MAX_SIZE:110}
       max-idle-time: ${R2DBC_POOL_MAX_IDLE_TIME:30m}
       max-acquire-time: ${R2DBC_POOL_MAX_ACQUIRE_TIME:5s}
       max-create-connection-time: ${R2DBC_POOL_MAX_CREATE_TIME:5s}
@@ -57,9 +57,16 @@ app:
     message-rate-limit-fixed-window-threshold: ${MESSAGE_RATE_LIMIT_FIXED_WINDOW_THRESHOLD:1000}
   outbox:
     poll-interval-ms: ${OUTBOX_POLL_INTERVAL_MS:500}
-    batch-size: ${OUTBOX_BATCH_SIZE:500}
+    batch-size: ${OUTBOX_BATCH_SIZE:250}
     publish-parallelism: ${OUTBOX_PUBLISH_PARALLELISM:8}
+    publisher-threads: ${OUTBOX_PUBLISHER_THREADS:0}
     busy-backoff-ms: ${OUTBOX_BUSY_BACKOFF_MS:5}
+    busy-backoff-min-ms: ${OUTBOX_BUSY_BACKOFF_MIN_MS:5}
+    busy-backoff-max-ms: ${OUTBOX_BUSY_BACKOFF_MAX_MS:30}
+    backlog-high-watermark: ${OUTBOX_BACKLOG_HIGH_WATERMARK:100}
+    backlog-refresh-interval-ms: ${OUTBOX_BACKLOG_REFRESH_INTERVAL_MS:5000}
+    retention-days: ${OUTBOX_RETENTION_DAYS:7}
+    cleanup-interval-ms: ${OUTBOX_CLEANUP_INTERVAL_MS:3600000}
   jwt:
     secret: ${JWT_SECRET:change-me-to-random-256-bit-string-min-32-chars}
     access-ttl-minutes: ${JWT_ACCESS_TTL_MINUTES:15}

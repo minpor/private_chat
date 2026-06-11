@@ -5,13 +5,9 @@ import chat.privatechat.domain.IdGenerator
 import chat.privatechat.domain.Message
 import chat.privatechat.domain.OutboxEvent
 import chat.privatechat.domain.ports.ChatMemberLookup
-import chat.privatechat.domain.ports.MessageRepository
-import chat.privatechat.domain.ports.OutboxRepository
-import chat.privatechat.infrastructure.observability.ChatMetrics
 import chat.privatechat.infrastructure.observability.ChatMetrics.MessageSource
 import tools.jackson.databind.json.JsonMapper
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.UUID
 
@@ -24,16 +20,13 @@ import java.util.UUID
 @Service
 @Suppress("LongParameterList")
 class MessageCommandService(
-    private val messageRepository: MessageRepository,
-    private val outboxRepository: OutboxRepository,
+    private val messageWriteSupport: MessageWriteSupport,
     private val chatMemberLookup: ChatMemberLookup,
     private val draftService: DraftService,
     private val rateLimitService: RateLimitService,
     private val idGenerator: IdGenerator,
-    private val jsonMapper: JsonMapper,
-    private val chatMetrics: ChatMetrics
+    private val jsonMapper: JsonMapper
 ) {
-    @Transactional
     suspend fun sendDirectMessage(
         chatId: UUID,
         senderId: UUID,
@@ -58,7 +51,6 @@ class MessageCommandService(
      *
      * @throws DraftNotFoundException если TTL истёк или черновик удалён
      */
-    @Transactional
     suspend fun commitFromDraft(
         snapshot: DraftSnapshot,
         clientMessageId: UUID,
@@ -93,6 +85,7 @@ class MessageCommandService(
             "Message text exceeds $MAX_MESSAGE_LENGTH characters"
         }
 
+        val memberIds = chatMemberLookup.findMemberIds(chatId)
         val now = Instant.now()
         val message = Message(
             id = idGenerator.nextId(),
@@ -104,33 +97,33 @@ class MessageCommandService(
             createdAt = now,
             deletedAt = null
         )
-        val saved = messageRepository.insertForSender(message)
-        val memberIds = chatMemberLookup.findMemberIds(chatId)
-        outboxRepository.insert(buildOutboxEvent(saved, memberIds, now))
-        chatMetrics.recordMessageAccepted(source)
-        return saved
+        val outboxEvent = buildOutboxEvent(message, memberIds, now)
+        return messageWriteSupport.persistMessageAndOutbox(message, outboxEvent, source)
     }
 
     private fun buildOutboxEvent(
         message: Message,
         memberIds: List<UUID>,
         createdAt: Instant
-    ): OutboxEvent =
-        OutboxEvent(
+    ): OutboxEvent {
+        val natsPayload = jsonMapper.writeValueAsBytes(
+            mapOf(
+                "messageId" to message.id.toString(),
+                "chatId" to message.chatId.toString(),
+                "senderId" to message.senderId.toString(),
+                "text" to message.body,
+                "createdAt" to message.createdAt.toString(),
+                "memberIds" to memberIds.map { it.toString() }
+            )
+        )
+        return OutboxEvent(
             id = idGenerator.nextId(),
             eventType = EVENT_MESSAGE_CREATED,
-            payload = jsonMapper.writeValueAsString(
-                mapOf(
-                    "messageId" to message.id.toString(),
-                    "chatId" to message.chatId.toString(),
-                    "senderId" to message.senderId.toString(),
-                    "text" to message.body,
-                    "createdAt" to message.createdAt.toString(),
-                    "memberIds" to memberIds.map { it.toString() }
-                )
-            ),
-            createdAt = createdAt
+            payload = String(natsPayload, Charsets.UTF_8),
+            createdAt = createdAt,
+            natsPayload = natsPayload
         )
+    }
 
     companion object {
         const val EVENT_MESSAGE_CREATED = "message.created"

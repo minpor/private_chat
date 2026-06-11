@@ -40,11 +40,13 @@ class R2dbcOutboxRepository(
         )
             .bind("limit", limit)
             .map { row, _ ->
+                val payload = row.get("payload", String::class.java)!!
                 OutboxEvent(
                     id = row.get("id", java.util.UUID::class.java)!!,
                     eventType = row.get("event_type", String::class.java)!!,
-                    payload = row.get("payload", String::class.java)!!,
-                    createdAt = row.get("created_at", java.time.Instant::class.java)!!
+                    payload = payload,
+                    createdAt = row.get("created_at", java.time.Instant::class.java)!!,
+                    natsPayload = payload.toByteArray(Charsets.UTF_8)
                 )
             }
             .all()
@@ -73,5 +75,17 @@ class R2dbcOutboxRepository(
         )
             .map { row, _ -> row.get("cnt", java.lang.Long::class.java)!!.toLong() }
             .one()
+            .awaitSingle()
+
+    override suspend fun deletePublishedBefore(cutoff: java.time.Instant): Long =
+        databaseClient.sql(
+            """
+            DELETE FROM outbox
+            WHERE published_at IS NOT NULL AND published_at < :cutoff
+            """.trimIndent()
+        )
+            .bind("cutoff", cutoff)
+            .fetch()
+            .rowsUpdated()
             .awaitSingle()
 }
