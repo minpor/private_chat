@@ -54,6 +54,7 @@ app:
     patch-rate-limit-per-second: ${DRAFT_PATCH_RATE_LIMIT:20}
     commit-rate-limit-per-minute: ${DRAFT_COMMIT_RATE_LIMIT:30}
     message-rate-limit-per-minute: ${MESSAGE_RATE_LIMIT:30}
+    message-rate-limit-fixed-window-threshold: ${MESSAGE_RATE_LIMIT_FIXED_WINDOW_THRESHOLD:1000}
   outbox:
     poll-interval-ms: ${OUTBOX_POLL_INTERVAL_MS:500}
     batch-size: ${OUTBOX_BATCH_SIZE:500}
