@@ -1,0 +1,35 @@
+name: Native Image
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  native-compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up GraalVM 25
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: "25"
+          distribution: "graalvm"
+          cache: gradle
+
+      - name: Build native binary
+        run: ./gradlew :server:nativeCompile --no-daemon
+
+      - name: Upload native binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: private-chat-server-native
+          path: server/build/native/nativeCompile/private-chat-server
+          if-no-files-found: error

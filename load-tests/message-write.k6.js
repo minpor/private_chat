@@ -10,23 +10,38 @@ function uuidv4() {
 }
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
+const WARMUP_RATE = Number(__ENV.WARMUP_TPS || '200');
+const WARMUP_DURATION = __ENV.WARMUP_DURATION || '30s';
 const TARGET_RATE = Number(__ENV.TARGET_TPS || '2000');
 const DURATION = __ENV.DURATION || '2m';
 
 export const options = {
   scenarios: {
+    warmup: {
+      executor: 'constant-arrival-rate',
+      rate: WARMUP_RATE,
+      timeUnit: '1s',
+      duration: WARMUP_DURATION,
+      preAllocatedVUs: 50,
+      maxVUs: 200,
+      exec: 'writeMessage',
+      tags: { phase: 'warmup' }
+    },
     message_writes: {
       executor: 'constant-arrival-rate',
       rate: TARGET_RATE,
       timeUnit: '1s',
       duration: DURATION,
       preAllocatedVUs: Math.min(TARGET_RATE, 1000),
-      maxVUs: Math.min(TARGET_RATE * 2, 2000)
+      maxVUs: Math.min(TARGET_RATE * 2, 2000),
+      exec: 'writeMessage',
+      startTime: WARMUP_DURATION,
+      tags: { phase: 'measured' }
     }
   },
   thresholds: {
-    http_req_failed: ['rate<0.01'],
-    http_req_duration: ['p(95)<500']
+    'http_req_failed{phase:measured}': ['rate<0.01'],
+    'http_req_duration{phase:measured}': ['p(95)<500']
   }
 };
 
@@ -65,7 +80,7 @@ export function setup() {
 
   const suffix = Date.now();
   const senderToken = registerUser(`load_sender_${suffix}`);
-  const receiverToken = registerUser(`load_receiver_${suffix}`);
+  registerUser(`load_receiver_${suffix}`);
 
   const chatRes = http.post(
     `${BASE_URL}/api/v1/chats`,
@@ -81,12 +96,11 @@ export function setup() {
 
   return {
     token: senderToken,
-    chatId: chatRes.json('id'),
-    receiverToken
+    chatId: chatRes.json('id')
   };
 }
 
-export default function (data) {
+export function writeMessage(data) {
   const res = http.post(
     `${BASE_URL}/api/v1/chats/${data.chatId}/messages`,
     JSON.stringify({

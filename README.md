@@ -4,7 +4,7 @@
 
 ## Стек
 
-- Spring Boot **4.0.6** WebFlux, Kotlin **2.4**, JDK **21**
+- Spring Boot **4.0.6** WebFlux, Kotlin **2.4**, JDK **25**
 - PostgreSQL (R2DBC), Redis (reactive), NATS JetStream
 - Draft-sync через WebSocket + REST fallback; JWT auth; outbox → NATS → `message.new`
 
@@ -14,7 +14,7 @@
 
 | Компонент | Версия | Зачем |
 |-----------|--------|-------|
-| JDK | 21 LTS | runtime, Gradle toolchain |
+| JDK | 25 LTS (GraalVM или Temurin) | runtime, Gradle 9.1+, native-image |
 | PostgreSQL | 16+ | users, chats, messages, outbox |
 | Redis | 7+ | drafts, rate limit |
 | NATS | 2.10+ с `-js` | outbox fan-out |
@@ -23,7 +23,7 @@
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y openjdk-21-jdk postgresql redis-server nats-server
+sudo apt-get install -y openjdk-25-jdk postgresql redis-server nats-server
 ```
 
 ### NATS (apt, с JetStream)
@@ -118,8 +118,32 @@ export $(grep -v '^#' .env | xargs)
 # миграции (Flyway, вне runtime — blocking JDBC только здесь)
 ./gradlew flywayMigrate
 
-# сервер
+# сервер (JVM)
 ./gradlew :server:bootRun
+```
+
+### GraalVM Native Image (опционально)
+
+Требуется **GraalVM JDK 25** с компонентом `native-image` (Spring Boot 4). Пример через SDKMAN:
+
+```bash
+sdk install java 25.0.2-graal
+sdk use java 25.0.2-graal
+```
+
+```bash
+# AOT-обработка (быстрая проверка без полной native-сборки)
+./gradlew :server:processAot
+
+# нативный бинарник (~200 MB, cold start ~0.5 с vs ~3 с на JVM)
+./gradlew :server:nativeCompile
+./server/build/native/nativeCompile/private-chat-server
+```
+
+Smoke-тест и сравнение JVM/native (нужны PostgreSQL, Redis, NATS):
+
+```bash
+./scripts/compare-native-jvm.sh
 ```
 
 Health: `GET http://localhost:8080/actuator/health`

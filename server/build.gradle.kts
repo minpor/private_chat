@@ -1,9 +1,11 @@
+import org.gradle.jvm.toolchain.JvmVendorSpec
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.spring)
     alias(libs.plugins.spring.boot)
+    alias(libs.plugins.graalvm.native)
     alias(libs.plugins.detekt)
     alias(libs.plugins.dokka)
 }
@@ -13,13 +15,13 @@ version = "0.1.0-SNAPSHOT"
 
 java {
     toolchain {
-        languageVersion.set(JavaLanguageVersion.of(21))
+        languageVersion.set(JavaLanguageVersion.of(25))
     }
 }
 
 kotlin {
     compilerOptions {
-        jvmTarget.set(JvmTarget.JVM_21)
+        jvmTarget.set(JvmTarget.JVM_25)
         freeCompilerArgs.add("-Xjsr305=strict")
     }
 }
@@ -40,7 +42,6 @@ dependencies {
     implementation(libs.kotlinx.coroutines.reactor)
     implementation(libs.jnats)
     implementation(libs.uuid.generator)
-    implementation(libs.caffeine)
     implementation(libs.jjwt.api)
     runtimeOnly(libs.jjwt.impl)
     runtimeOnly(libs.jjwt.jackson)
@@ -55,6 +56,26 @@ dependencies {
 detekt {
     buildUponDefaultConfig = true
     config.setFrom("$rootDir/detekt.yml")
+}
+
+graalvmNative {
+    toolchainDetection.set(false)
+    binaries {
+        named("main") {
+            imageName.set("private-chat-server")
+            javaLauncher.set(
+                javaToolchains.launcherFor {
+                    languageVersion.set(JavaLanguageVersion.of(25))
+                    vendor.set(JvmVendorSpec.matching("Oracle Corporation"))
+                }
+            )
+            buildArgs.add("--enable-url-protocols=http,https")
+            buildArgs.add("-H:+ReportExceptionStackTraces")
+        }
+    }
+    metadataRepository {
+        enabled.set(true)
+    }
 }
 
 tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {

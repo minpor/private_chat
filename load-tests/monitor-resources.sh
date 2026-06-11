@@ -63,7 +63,11 @@ find_app_pids() {
   for pattern in "${patterns[@]}"; do
     while IFS= read -r pid; do
       [[ -z "$pid" ]] && continue
-      is_java_pid "$pid" || continue
+      if [[ "$pattern" == *private-chat-server* ]]; then
+        :
+      elif ! is_java_pid "$pid"; then
+        continue
+      fi
       [[ " $seen " == *" $pid "* ]] && continue
       seen+="$pid "
       echo "$pid"

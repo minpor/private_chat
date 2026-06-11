@@ -1,61 +1,55 @@
 package chat.privatechat.infrastructure.jwt
 
-import com.github.benmanes.caffeine.cache.Caffeine
-import com.github.benmanes.caffeine.cache.Expiry
 import org.springframework.stereotype.Component
 import java.security.MessageDigest
-import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Кэш уже проверенных access JWT до момента [Instant] истечения из claim `exp`.
  *
  * Ключ включает префикс от [JwtProperties.secret], чтобы при ротации секрета
  * старые записи не использовались без повторной верификации подписи.
+ *
+ * Реализация на [ConcurrentHashMap] (без Caffeine) — совместима с GraalVM Native Image.
  */
 @Component
 class JwtAccessTokenCache(
     properties: JwtProperties
 ) {
     private val enabled = properties.accessTokenCacheEnabled
+    private val maxSize = properties.accessTokenCacheMaxSize
     private val keyPrefix = secretKeyPrefix(properties.secret)
-
-    private val cache = Caffeine.newBuilder()
-        .maximumSize(properties.accessTokenCacheMaxSize)
-        .expireAfter(
-            object : Expiry<String, CachedAccessToken> {
-                override fun expireAfterCreate(
-                    key: String,
-                    value: CachedAccessToken,
-                    currentTime: Long
-                ): Long =
-                    Duration.between(Instant.now(), value.expiresAt).toNanos().coerceAtLeast(0)
-
-                override fun expireAfterUpdate(
-                    key: String,
-                    value: CachedAccessToken,
-                    currentTime: Long,
-                    currentDuration: Long
-                ): Long = currentDuration
-
-                override fun expireAfterRead(
-                    key: String,
-                    value: CachedAccessToken,
-                    currentTime: Long,
-                    currentDuration: Long
-                ): Long = currentDuration
-            }
-        )
-        .build<String, CachedAccessToken>()
+    private val cache = ConcurrentHashMap<String, CachedAccessToken>()
 
     fun get(token: String): AccessTokenClaims? {
         if (!enabled) return null
-        return cache.getIfPresent(cacheKey(token))?.claims
+        val key = cacheKey(token)
+        val entry = cache[key] ?: return null
+        if (Instant.now().isAfter(entry.expiresAt)) {
+            cache.remove(key)
+            return null
+        }
+        return entry.claims
     }
 
     fun put(token: String, claims: AccessTokenClaims, expiresAt: Instant) {
         if (!enabled) return
-        cache.put(cacheKey(token), CachedAccessToken(claims, expiresAt))
+        evictExpired()
+        evictOverflow()
+        cache[cacheKey(token)] = CachedAccessToken(claims, expiresAt)
+    }
+
+    private fun evictExpired() {
+        val now = Instant.now()
+        cache.entries.removeIf { (_, value) -> now.isAfter(value.expiresAt) }
+    }
+
+    private fun evictOverflow() {
+        while (cache.size >= maxSize) {
+            val oldest = cache.entries.minByOrNull { it.value.expiresAt }?.key ?: break
+            cache.remove(oldest)
+        }
     }
 
     private fun cacheKey(token: String): String =

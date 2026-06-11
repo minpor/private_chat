@@ -4,11 +4,12 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LOAD_DIR="$ROOT/load-tests"
-STAMP="$(date +%Y-%m-%dT%H-%M-%S)"
+STAMP="$(date +%Y-%m-%dT%H-%M-%S)${RESULT_SUFFIX:+-${RESULT_SUFFIX}}"
 OUT_DIR="$LOAD_DIR/results/$STAMP"
 TMP_TSV="$(mktemp /tmp/load-test-resources.XXXXXX.tsv)"
 TMP_K6="$(mktemp /tmp/load-test-k6.XXXXXX.log)"
-MONITOR_SEC="${MONITOR_SEC:-135}"
+MONITOR_SEC="${MONITOR_SEC:-170}"
+JVM_WARMUP_SEC="${JVM_WARMUP_SEC:-15}"
 K6_ARGS="${K6_ARGS:-}"
 
 mkdir -p "$OUT_DIR" "$LOAD_DIR/results"
@@ -19,7 +20,11 @@ echo "Starting monitor for ${MONITOR_SEC}s ..."
 MON_PID=$!
 
 sleep 3
-echo "Starting k6 ..."
+if [[ "$JVM_WARMUP_SEC" -gt 0 ]]; then
+  echo "JVM idle warmup: ${JVM_WARMUP_SEC}s ..."
+  sleep "$JVM_WARMUP_SEC"
+fi
+echo "Starting k6 (k6 warmup ${WARMUP_DURATION:-30s} @ ${WARMUP_TPS:-200} TPS, then measured) ..."
 set +e
 k6 run "$LOAD_DIR/message-write.k6.js" $K6_ARGS 2>&1 | tee "$TMP_K6"
 K6_EXIT=${PIPESTATUS[0]}
