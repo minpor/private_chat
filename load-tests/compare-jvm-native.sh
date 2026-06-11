@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Fair JVM vs native load test: clean DB, warmup, measured run — repeat per runtime.
+# Default order (all): native first, then JVM.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -143,8 +144,8 @@ case "$RUN_TARGET" in
     run_mode native "$NATIVE"
     ;;
   all)
-    run_mode jvm "$JAR"
     run_mode native "$NATIVE"
+    run_mode jvm "$JAR"
     ;;
   *)
     echo "Usage: $0 [all|jvm|native]" >&2
