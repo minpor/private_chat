@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useChats } from "@/hooks/use-chats"
+import { chatTitle } from "@/lib/chat-peer"
 import { useChatStore } from "@/store/chat-store"
 import { useMemo, useState } from "react"
 
@@ -13,6 +14,7 @@ export function ChatList() {
   const { data: chats, isLoading, refetch, isFetching } = useChats()
   const setActiveChatId = useChatStore((s) => s.setActiveChatId)
   const setSidebarOpen = useChatStore((s) => s.setSidebarOpen)
+  const peers = useChatStore((s) => s.peers)
   const [search, setSearch] = useState("")
 
   const filtered = useMemo(() => {
@@ -20,10 +22,10 @@ export function ChatList() {
     const q = search.trim().toLowerCase()
     if (!q) return list
     return list.filter((chat) => {
-      const peer = useChatStore.getState().peerNames[chat.id] ?? chat.title ?? chat.id
-      return peer.toLowerCase().includes(q) || chat.type.includes(q)
+      const title = chatTitle(chat, peers).toLowerCase()
+      return title.includes(q) || chat.type.includes(q)
     })
-  }, [chats, search])
+  }, [chats, peers, search])
 
   function selectChat(chatId: string) {
     setActiveChatId(chatId)

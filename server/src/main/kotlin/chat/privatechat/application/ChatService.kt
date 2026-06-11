@@ -3,6 +3,7 @@ package chat.privatechat.application
 import chat.privatechat.domain.Chat
 import chat.privatechat.domain.ChatType
 import chat.privatechat.domain.IdGenerator
+import chat.privatechat.domain.User
 import chat.privatechat.domain.ports.ChatMemberLookup
 import chat.privatechat.domain.ports.ChatRepository
 import chat.privatechat.domain.ports.UserRepository
@@ -53,6 +54,13 @@ class ChatService(
 
     suspend fun listChats(userId: UUID, limit: Int = 50): List<Chat> =
         chatRepository.listForUser(userId, limit.coerceIn(1, 100))
+
+    suspend fun resolveDirectChatPeer(chat: Chat, currentUserId: UUID): User? {
+        if (chat.type != ChatType.DIRECT) return null
+        val peerId = chatMemberLookup.findMemberIds(chat.id).firstOrNull { it != currentUserId }
+            ?: return null
+        return userRepository.findById(peerId)
+    }
 
     suspend fun requireMembership(chatId: UUID, userId: UUID) {
         if (!chatRepository.isMember(chatId, userId)) {

@@ -2,7 +2,7 @@ import { ArrowLeft } from "lucide-react"
 import { TypingIndicator } from "@/components/chat/TypingIndicator"
 import type { ChatResponse } from "@/api/types"
 import { Button } from "@/components/ui/button"
-import { shortId } from "@/lib/utils"
+import { chatTitle, peerLabel } from "@/lib/chat-peer"
 import { useAuthStore } from "@/store/auth-store"
 import { useChatStore } from "@/store/chat-store"
 
@@ -14,7 +14,7 @@ export function ChatHeader({ chat }: ChatHeaderProps) {
   const sendMode = useChatStore((s) => s.setSendMode)
   const currentMode = useChatStore((s) => s.sendMode)
   const setSidebarOpen = useChatStore((s) => s.setSidebarOpen)
-  const peerNames = useChatStore((s) => s.peerNames)
+  const peers = useChatStore((s) => s.peers)
   const typingPeers = useChatStore((s) => s.typingPeers)
   const activeChatId = useChatStore((s) => s.activeChatId)
   const currentUserId = useAuthStore((s) => s.user?.id)
@@ -24,10 +24,15 @@ export function ChatHeader({ chat }: ChatHeaderProps) {
       ? (typingPeers[activeChatId] ?? []).filter((id) => id !== currentUserId)
       : []
 
-  const title =
-    (activeChatId && peerNames[activeChatId]) ??
-    chat?.title ??
-    (chat ? `Chat ${shortId(chat.id)}` : "Чат")
+  const title = chat ? chatTitle(chat, peers) : "Чат"
+  const typingUserId = peerTyping[0]
+  const typingPeer = activeChatId ? peers[activeChatId] ?? chat?.peer : null
+  const typingLabel =
+    typingUserId && typingPeer?.id === typingUserId
+      ? `${peerLabel(typingPeer)} печатает`
+      : typingUserId
+        ? "Собеседник печатает"
+        : null
 
   return (
     <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
@@ -42,8 +47,8 @@ export function ChatHeader({ chat }: ChatHeaderProps) {
         </Button>
         <div className="min-w-0">
           <h2 className="truncate font-semibold">{title}</h2>
-          {peerTyping.length > 0 ? (
-            <TypingIndicator label={title !== "Чат" ? `${title} печатает` : "печатает"} />
+          {typingLabel ? (
+            <TypingIndicator label={typingLabel} />
           ) : (
             <p className="text-xs text-muted-foreground capitalize">{chat?.type ?? "direct"}</p>
           )}

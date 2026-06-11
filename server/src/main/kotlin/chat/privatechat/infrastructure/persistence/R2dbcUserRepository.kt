@@ -59,6 +59,25 @@ class R2dbcUserRepository(
             .map { _, _ -> true }
             .awaitOneOrNull() ?: false
 
+    override suspend fun searchByUsernamePrefix(prefix: String, excludeUserId: UUID, limit: Int): List<User> =
+        databaseClient.sql(
+            """
+            SELECT id, username, display_name, created_at
+            FROM users
+            WHERE username ILIKE :prefix
+              AND id != :exclude_id
+            ORDER BY username
+            LIMIT :limit
+            """.trimIndent()
+        )
+            .bind("prefix", "$prefix%")
+            .bind("exclude_id", excludeUserId)
+            .bind("limit", limit)
+            .map { row, _ -> row.toUser() }
+            .all()
+            .collectList()
+            .awaitSingle()
+
     override suspend fun insert(
         id: UUID,
         username: String,

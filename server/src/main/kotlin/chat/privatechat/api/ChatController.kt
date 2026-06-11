@@ -28,20 +28,29 @@ class ChatController(
     suspend fun createDirectChat(
         @AuthenticationPrincipal principal: UserPrincipal,
         @Valid @RequestBody request: CreateDirectChatRequest
-    ): ChatResponse =
-        chatService.createDirectChat(principal.id, request.username).toResponse()
+    ): ChatResponse {
+        val chat = chatService.createDirectChat(principal.id, request.username)
+        val peer = chatService.resolveDirectChatPeer(chat, principal.id)
+        return chat.toResponse(peer)
+    }
 
     @GetMapping
     suspend fun listChats(
         @AuthenticationPrincipal principal: UserPrincipal,
         @RequestParam(defaultValue = "50") limit: Int
     ): List<ChatResponse> =
-        chatService.listChats(principal.id, limit).map { it.toResponse() }
+        chatService.listChats(principal.id, limit).map { chat ->
+            val peer = chatService.resolveDirectChatPeer(chat, principal.id)
+            chat.toResponse(peer)
+        }
 
     @GetMapping("/{chatId}")
     suspend fun getChat(
         @AuthenticationPrincipal principal: UserPrincipal,
         @PathVariable chatId: UUID
-    ): ChatResponse =
-        chatService.getChat(chatId, principal.id).toResponse()
+    ): ChatResponse {
+        val chat = chatService.getChat(chatId, principal.id)
+        val peer = chatService.resolveDirectChatPeer(chat, principal.id)
+        return chat.toResponse(peer)
+    }
 }

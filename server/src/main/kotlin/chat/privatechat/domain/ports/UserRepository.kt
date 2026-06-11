@@ -22,4 +22,6 @@ interface UserRepository {
         passwordHash: String,
         displayName: String
     ): User
+
+    suspend fun searchByUsernamePrefix(prefix: String, excludeUserId: UUID, limit: Int): List<User>
 }

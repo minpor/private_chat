@@ -10,19 +10,34 @@ data class CreateDirectChatRequest(
     val username: String
 )
 
+data class ChatPeerResponse(
+    val id: String,
+    val username: String,
+    val displayName: String
+)
+
 data class ChatResponse(
     val id: String,
     val type: String,
     val title: String?,
     val createdBy: String,
-    val createdAt: String
+    val createdAt: String,
+    val peer: ChatPeerResponse? = null
 )
 
-fun Chat.toResponse(): ChatResponse =
+fun chat.privatechat.domain.User.toPeerResponse(): ChatPeerResponse =
+    ChatPeerResponse(
+        id = id.toString(),
+        username = username,
+        displayName = displayName
+    )
+
+fun Chat.toResponse(peer: chat.privatechat.domain.User? = null): ChatResponse =
     ChatResponse(
         id = id.toString(),
         type = type.name.lowercase(),
         title = title,
         createdBy = createdBy.toString(),
-        createdAt = createdAt.toString()
+        createdAt = createdAt.toString(),
+        peer = peer?.toPeerResponse()
     )

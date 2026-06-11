@@ -1,6 +1,7 @@
 package chat.privatechat.config
 
 import chat.privatechat.application.MessageCreatedNatsPayload
+import chat.privatechat.api.dto.ChatPeerResponse
 import chat.privatechat.api.dto.ChatResponse
 import chat.privatechat.api.dto.CommitDraftRequest
 import chat.privatechat.api.dto.CreateDirectChatRequest
@@ -49,6 +50,7 @@ import org.springframework.context.annotation.Configuration
     UserResponse::class,
     CreateDirectChatRequest::class,
     ChatResponse::class,
+    ChatPeerResponse::class,
     SendMessageRequest::class,
     MessageAcceptedResponse::class,
     MessageResponse::class,

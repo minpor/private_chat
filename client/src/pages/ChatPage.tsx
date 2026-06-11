@@ -10,10 +10,17 @@ import { useChatStore } from "@/store/chat-store"
 
 export function ChatPage() {
   const activeChatId = useChatStore((s) => s.activeChatId)
+  const setPeer = useChatStore((s) => s.setPeer)
 
   const { data: chat } = useQuery({
     queryKey: ["chat", activeChatId],
-    queryFn: () => chatsApi.getChat(activeChatId!),
+    queryFn: async () => {
+      const loaded = await chatsApi.getChat(activeChatId!)
+      if (loaded.peer) {
+        setPeer(loaded.id, loaded.peer)
+      }
+      return loaded
+    },
     enabled: !!activeChatId
   })
 

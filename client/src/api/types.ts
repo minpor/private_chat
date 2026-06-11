@@ -22,12 +22,19 @@ export interface LoginRequest {
   password: string
 }
 
+export interface ChatPeerResponse {
+  id: string
+  username: string
+  displayName: string
+}
+
 export interface ChatResponse {
   id: string
   type: string
   title: string | null
   createdBy: string
   createdAt: string
+  peer: ChatPeerResponse | null
 }
 
 export interface MessageResponse {

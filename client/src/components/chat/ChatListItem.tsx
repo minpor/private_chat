@@ -1,6 +1,7 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import type { ChatResponse } from "@/api/types"
-import { cn, initials, shortId } from "@/lib/utils"
+import { chatTitle } from "@/lib/chat-peer"
+import { cn, initials } from "@/lib/utils"
 import { useChatStore } from "@/store/chat-store"
 
 interface ChatListItemProps {
@@ -10,9 +11,9 @@ interface ChatListItemProps {
 
 export function ChatListItem({ chat, onSelect }: ChatListItemProps) {
   const activeChatId = useChatStore((s) => s.activeChatId)
-  const peerNames = useChatStore((s) => s.peerNames)
+  const peers = useChatStore((s) => s.peers)
   const isActive = activeChatId === chat.id
-  const label = peerNames[chat.id] ?? chat.title ?? `Chat ${shortId(chat.id)}`
+  const label = chatTitle(chat, peers)
 
   return (
     <button

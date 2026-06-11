@@ -1,18 +1,19 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
-import type { SendMode, WsStatus } from "@/api/types"
+import type { ChatPeerResponse, ChatResponse, SendMode, WsStatus } from "@/api/types"
 
 interface ChatState {
   activeChatId: string | null
   sendMode: SendMode
   wsStatus: WsStatus
-  peerNames: Record<string, string>
+  peers: Record<string, ChatPeerResponse>
   typingPeers: Record<string, string[]>
   sidebarOpen: boolean
   setActiveChatId: (chatId: string | null) => void
   setSendMode: (mode: SendMode) => void
   setWsStatus: (status: WsStatus) => void
-  setPeerName: (chatId: string, name: string) => void
+  setPeer: (chatId: string, peer: ChatPeerResponse) => void
+  syncPeersFromChats: (chats: ChatResponse[]) => void
   setTyping: (chatId: string, userId: string, active: boolean) => void
   clearTyping: (chatId: string, userId?: string) => void
   setSidebarOpen: (open: boolean) => void
@@ -24,17 +25,27 @@ export const useChatStore = create<ChatState>()(
       activeChatId: null,
       sendMode: "draft",
       wsStatus: "disconnected",
-      peerNames: {},
+      peers: {},
       typingPeers: {},
       sidebarOpen: false,
 
       setActiveChatId: (chatId) => set({ activeChatId: chatId }),
       setSendMode: (mode) => set({ sendMode: mode }),
       setWsStatus: (status) => set({ wsStatus: status }),
-      setPeerName: (chatId, name) =>
+      setPeer: (chatId, peer) =>
         set((state) => ({
-          peerNames: { ...state.peerNames, [chatId]: name }
+          peers: { ...state.peers, [chatId]: peer }
         })),
+      syncPeersFromChats: (chats) =>
+        set((state) => {
+          const peers = { ...state.peers }
+          for (const chat of chats) {
+            if (chat.peer) {
+              peers[chat.id] = chat.peer
+            }
+          }
+          return { peers }
+        }),
       setTyping: (chatId, userId, active) =>
         set((state) => {
           const current = new Set(state.typingPeers[chatId] ?? [])
@@ -69,8 +80,7 @@ export const useChatStore = create<ChatState>()(
     {
       name: "private-chat-ui",
       partialize: (state) => ({
-        sendMode: state.sendMode,
-        peerNames: state.peerNames
+        sendMode: state.sendMode
       })
     }
   )
