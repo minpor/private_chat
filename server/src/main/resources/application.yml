@@ -63,6 +63,8 @@ app:
     secret: ${JWT_SECRET:change-me-to-random-256-bit-string-min-32-chars}
     access-ttl-minutes: ${JWT_ACCESS_TTL_MINUTES:15}
     refresh-ttl-days: ${JWT_REFRESH_TTL_DAYS:7}
+    access-token-cache-enabled: ${JWT_ACCESS_TOKEN_CACHE_ENABLED:true}
+    access-token-cache-max-size: ${JWT_ACCESS_TOKEN_CACHE_MAX_SIZE:10000}
   r2dbc:
     read-replica:
       enabled: ${DB_READ_REPLICA_ENABLED:false}

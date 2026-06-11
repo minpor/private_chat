@@ -40,6 +40,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.reactor)
     implementation(libs.jnats)
     implementation(libs.uuid.generator)
+    implementation(libs.caffeine)
     implementation(libs.jjwt.api)
     runtimeOnly(libs.jjwt.impl)
     runtimeOnly(libs.jjwt.jackson)

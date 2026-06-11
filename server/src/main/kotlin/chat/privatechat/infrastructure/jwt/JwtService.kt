@@ -11,10 +11,13 @@ import javax.crypto.SecretKey
 
 /**
  * Выпуск и проверка access JWT (HMAC-SHA256). Refresh — opaque token в PostgreSQL.
+ *
+ * Успешно проверенные access-токены кэшируются до `exp` ([JwtAccessTokenCache]).
  */
 @Service
 class JwtService(
-    private val properties: JwtProperties
+    private val properties: JwtProperties,
+    private val accessTokenCache: JwtAccessTokenCache
 ) {
     private val secretKey: SecretKey by lazy {
         Keys.hmacShaKeyFor(properties.secret.toByteArray(Charsets.UTF_8))
@@ -33,15 +36,20 @@ class JwtService(
     }
 
     fun parseAccessToken(token: String): AccessTokenClaims {
+        accessTokenCache.get(token)?.let { return it }
+
         val claims = Jwts.parser()
             .verifyWith(secretKey)
             .build()
             .parseSignedClaims(token)
             .payload
-        return AccessTokenClaims(
+        val expiresAt = claims.expiration.toInstant()
+        val parsed = AccessTokenClaims(
             userId = UUID.fromString(claims.subject),
             username = claims.get(CLAIM_USERNAME, String::class.java)
         )
+        accessTokenCache.put(token, parsed, expiresAt)
+        return parsed
     }
 
     fun refreshExpiresAt(): Instant =

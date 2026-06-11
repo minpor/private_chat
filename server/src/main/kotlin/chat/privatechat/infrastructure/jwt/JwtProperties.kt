@@ -6,5 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 data class JwtProperties(
     val secret: String,
     val accessTtlMinutes: Long = 15,
-    val refreshTtlDays: Long = 7
+    val refreshTtlDays: Long = 7,
+    val accessTokenCacheEnabled: Boolean = true,
+    val accessTokenCacheMaxSize: Long = 10_000
 )
