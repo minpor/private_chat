@@ -122,6 +122,34 @@ export $(grep -v '^#' .env | xargs)
 ./gradlew :server:bootRun
 ```
 
+### Веб-клиент (тестовый UI)
+
+React-приложение в [`client/`](client/) — messenger-like UI для ручного тестирования API и WebSocket.
+
+Требуется **Node.js 20+**. Vite проксирует `/api` на `localhost:8080` (CORS не нужен).
+
+```bash
+cd client
+npm install
+npm run dev
+# http://localhost:5173
+```
+
+Сборка production:
+
+```bash
+cd client && npm run build && npm run preview
+```
+
+**Сценарий с двумя браузерами:**
+
+1. Запустите сервер (`./gradlew :server:bootRun`) и клиент (`npm run dev` в `client/`).
+2. Браузер 1: зарегистрируйте `alice` / Браузер 2 (incognito): зарегистрируйте `bob`.
+3. В Alice: «Новый чат» → username `bob`.
+4. В Bob: обновите список чатов (кнопка refresh).
+5. Отправляйте сообщения в режиме **Draft** (WebSocket draft-sync) или **REST** — доставка в реальном времени через `message.new`.
+6. Перезагрузите страницу — история подтягивается из API, WebSocket переподключается.
+
 ### GraalVM Native Image (опционально)
 
 Требуется **GraalVM JDK 25** с компонентом `native-image` (Spring Boot 4). Пример через SDKMAN:

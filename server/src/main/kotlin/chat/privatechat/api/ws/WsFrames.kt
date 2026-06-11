@@ -44,6 +44,12 @@ data class MessageNewPayload(
     val createdAt: String
 )
 
+data class TypingIndicatorPayload(
+    val chatId: String,
+    val userId: String,
+    val active: Boolean
+)
+
 object WsFrameFactory {
     fun draftStarted(draftId: UUID, chatId: UUID, revision: Long): Map<String, Any?> =
         mapOf(
@@ -104,6 +110,16 @@ object WsFrameFactory {
                 senderId = senderId.toString(),
                 text = text,
                 createdAt = createdAt
+            )
+        )
+
+    fun typingIndicator(chatId: UUID, userId: UUID, active: Boolean): Map<String, Any?> =
+        mapOf(
+            "type" to "typing.indicator",
+            "payload" to TypingIndicatorPayload(
+                chatId = chatId.toString(),
+                userId = userId.toString(),
+                active = active
             )
         )
 

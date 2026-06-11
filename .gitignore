@@ -11,4 +11,6 @@ out/
 *.log
 load-tests/results/
 load-tests/tools/
+client/node_modules/
+client/dist/
 .DS_Store

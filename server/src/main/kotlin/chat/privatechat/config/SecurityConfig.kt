@@ -1,10 +1,10 @@
 package chat.privatechat.config
 
 import chat.privatechat.infrastructure.jwt.JwtService
+import io.jsonwebtoken.JwtException
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpMethod
-import org.springframework.http.HttpStatus
 import org.springframework.security.authentication.BadCredentialsException
 import org.springframework.security.authentication.ReactiveAuthenticationManager
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
@@ -17,6 +17,8 @@ import org.springframework.security.web.server.SecurityWebFilterChain
 import org.springframework.security.web.server.authentication.AuthenticationWebFilter
 import org.springframework.security.web.server.authentication.ServerAuthenticationConverter
 import org.springframework.security.web.server.authentication.ServerAuthenticationEntryPointFailureHandler
+import org.springframework.security.web.server.util.matcher.AndServerWebExchangeMatcher
+import org.springframework.security.web.server.util.matcher.NegatedServerWebExchangeMatcher
 import org.springframework.security.web.server.util.matcher.ServerWebExchangeMatchers
 import org.springframework.web.server.ServerWebExchange
 import reactor.core.publisher.Mono
@@ -32,23 +34,36 @@ class SecurityConfig(
         val authManager = ReactiveAuthenticationManager { authentication ->
             Mono.fromCallable {
                 val token = authentication.credentials as String
-                val claims = jwtService.parseAccessToken(token)
-                UsernamePasswordAuthenticationToken(
-                    UserPrincipal(claims.userId, claims.username),
-                    token,
-                    listOf(SimpleGrantedAuthority("ROLE_USER"))
-                )
+                try {
+                    val claims = jwtService.parseAccessToken(token)
+                    UsernamePasswordAuthenticationToken(
+                        UserPrincipal(claims.userId, claims.username),
+                        token,
+                        listOf(SimpleGrantedAuthority("ROLE_USER"))
+                    )
+                } catch (ex: JwtException) {
+                    throw BadCredentialsException("Invalid or expired token", ex)
+                }
             }
         }
+
+        val publicAuthPaths = ServerWebExchangeMatchers.pathMatchers(
+            "/api/v1/auth/register",
+            "/api/v1/auth/login",
+            "/api/v1/auth/refresh"
+        )
 
         val jwtFilter = AuthenticationWebFilter(authManager).apply {
             setServerAuthenticationConverter(bearerTokenConverter())
             setRequiresAuthenticationMatcher(
-                ServerWebExchangeMatchers.pathMatchers("/api/**")
+                AndServerWebExchangeMatcher(
+                    ServerWebExchangeMatchers.pathMatchers("/api/**"),
+                    NegatedServerWebExchangeMatcher(publicAuthPaths)
+                )
             )
             setAuthenticationFailureHandler(
                 ServerAuthenticationEntryPointFailureHandler { _, _ ->
-                    Mono.error(org.springframework.security.access.AccessDeniedException("Unauthorized"))
+                    Mono.error(BadCredentialsException("Unauthorized"))
                 }
             )
         }
