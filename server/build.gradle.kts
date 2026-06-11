@@ -4,6 +4,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.spring)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.spring.boot)
     alias(libs.plugins.graalvm.native)
     alias(libs.plugins.detekt)
@@ -38,6 +39,7 @@ dependencies {
     implementation(libs.logstash.logback.encoder)
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("tools.jackson.module:jackson-module-kotlin")
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.jdk8)
     implementation(libs.kotlinx.coroutines.reactor)

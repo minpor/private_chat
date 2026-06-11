@@ -19,6 +19,11 @@ interface MessageRepository {
      */
     suspend fun insertForSender(message: Message): Message
 
+    /**
+     * INSERT после проверки membership в application layer (без EXISTS в SQL).
+     */
+    suspend fun insertForVerifiedMember(message: Message): Message
+
     suspend fun listBefore(
         chatId: UUID,
         before: Instant?,

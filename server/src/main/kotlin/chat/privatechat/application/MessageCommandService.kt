@@ -6,7 +6,8 @@ import chat.privatechat.domain.Message
 import chat.privatechat.domain.OutboxEvent
 import chat.privatechat.domain.ports.ChatMemberLookup
 import chat.privatechat.infrastructure.observability.ChatMetrics.MessageSource
-import tools.jackson.databind.json.JsonMapper
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.springframework.stereotype.Service
 import java.time.Instant
 import java.util.UUID
@@ -22,10 +23,10 @@ import java.util.UUID
 class MessageCommandService(
     private val messageWriteSupport: MessageWriteSupport,
     private val chatMemberLookup: ChatMemberLookup,
+    private val directMessageWriteGate: DirectMessageWriteGate,
     private val draftService: DraftService,
     private val rateLimitService: RateLimitService,
-    private val idGenerator: IdGenerator,
-    private val jsonMapper: JsonMapper
+    private val idGenerator: IdGenerator
 ) {
     suspend fun sendDirectMessage(
         chatId: UUID,
@@ -34,7 +35,7 @@ class MessageCommandService(
         text: String,
         replyTo: UUID?
     ): Message {
-        rateLimitService.checkDirectMessageLimit(senderId)
+        val memberIds = directMessageWriteGate.checkLimitAndFindMembers(senderId, chatId)
 
         return persistMessage(
             chatId = chatId,
@@ -42,6 +43,7 @@ class MessageCommandService(
             clientMessageId = clientMessageId,
             body = text,
             replyTo = replyTo,
+            memberIds = memberIds,
             source = MessageSource.DIRECT
         )
     }
@@ -65,6 +67,7 @@ class MessageCommandService(
             clientMessageId = clientMessageId,
             body = snapshot.text,
             replyTo = null,
+            memberIds = null,
             source = MessageSource.DRAFT
         )
         draftService.deleteAfterCommit(snapshot)
@@ -77,6 +80,7 @@ class MessageCommandService(
         clientMessageId: UUID,
         body: String,
         replyTo: UUID?,
+        memberIds: List<UUID>?,
         source: MessageSource
     ): Message {
         val trimmed = body.trim()
@@ -85,7 +89,11 @@ class MessageCommandService(
             "Message text exceeds $MAX_MESSAGE_LENGTH characters"
         }
 
-        val memberIds = chatMemberLookup.findMemberIds(chatId)
+        val resolvedMemberIds = memberIds ?: chatMemberLookup.findMemberIds(chatId)
+        if (senderId !in resolvedMemberIds) {
+            throw ChatAccessDeniedException(chatId)
+        }
+
         val now = Instant.now()
         val message = Message(
             id = idGenerator.nextId(),
@@ -97,8 +105,13 @@ class MessageCommandService(
             createdAt = now,
             deletedAt = null
         )
-        val outboxEvent = buildOutboxEvent(message, memberIds, now)
-        return messageWriteSupport.persistMessageAndOutbox(message, outboxEvent, source)
+        val outboxEvent = buildOutboxEvent(message, resolvedMemberIds, now)
+        return messageWriteSupport.persistMessageAndOutbox(
+            message = message,
+            outboxEvent = outboxEvent,
+            source = source,
+            membershipVerified = true
+        )
     }
 
     private fun buildOutboxEvent(
@@ -106,16 +119,16 @@ class MessageCommandService(
         memberIds: List<UUID>,
         createdAt: Instant
     ): OutboxEvent {
-        val natsPayload = jsonMapper.writeValueAsBytes(
-            mapOf(
-                "messageId" to message.id.toString(),
-                "chatId" to message.chatId.toString(),
-                "senderId" to message.senderId.toString(),
-                "text" to message.body,
-                "createdAt" to message.createdAt.toString(),
-                "memberIds" to memberIds.map { it.toString() }
+        val natsPayload = outboxJson.encodeToString(
+            MessageCreatedNatsPayload(
+                messageId = message.id.toString(),
+                chatId = message.chatId.toString(),
+                senderId = message.senderId.toString(),
+                text = message.body,
+                createdAt = message.createdAt.toString(),
+                memberIds = memberIds.map { it.toString() }
             )
-        )
+        ).toByteArray(Charsets.UTF_8)
         return OutboxEvent(
             id = idGenerator.nextId(),
             eventType = EVENT_MESSAGE_CREATED,
@@ -128,5 +141,6 @@ class MessageCommandService(
     companion object {
         const val EVENT_MESSAGE_CREATED = "message.created"
         const val MAX_MESSAGE_LENGTH = 8192
+        private val outboxJson = Json { encodeDefaults = true }
     }
 }

@@ -1,5 +1,6 @@
 package chat.privatechat.config
 
+import chat.privatechat.application.MessageCreatedNatsPayload
 import chat.privatechat.api.dto.ChatResponse
 import chat.privatechat.api.dto.CommitDraftRequest
 import chat.privatechat.api.dto.CreateDirectChatRequest
@@ -40,6 +41,7 @@ import org.springframework.context.annotation.Configuration
     OutboxProperties::class,
     ChatMemberCacheProperties::class,
     DraftProperties::class,
+    MessageCreatedNatsPayload::class,
     RegisterRequest::class,
     LoginRequest::class,
     RefreshRequest::class,

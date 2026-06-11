@@ -25,6 +25,7 @@ fi
 export K6_PHASE
 # Optional: pin app process (set by compare-jvm-native.sh when server PID is known).
 export APP_SERVER_PID="${APP_SERVER_PID:-}"
+PROFILE_PID=""
 
 mkdir -p "$OUT_DIR" "$LOAD_DIR/results"
 
@@ -43,12 +44,21 @@ case "$K6_PHASE" in
   measured) echo "Starting k6 measured (${DURATION:-2m} @ ${TARGET_TPS:-2000} TPS) ..." ;;
   *) echo "Starting k6 (warmup ${WARMUP_DURATION:-30s} @ ${WARMUP_TPS:-200} TPS, then measured) ..." ;;
 esac
+if [[ "${PROFILE:-0}" == "1" ]]; then
+  PROFILE_SEC="${PROFILE_DURATION_SEC:-$MONITOR_SEC}"
+  echo "Starting async-profiler (${PROFILE_SEC}s) ..."
+  "$LOAD_DIR/profile-during-load.sh" "$APP_SERVER_PID" "$OUT_DIR" "$PROFILE_SEC" &
+  PROFILE_PID=$!
+fi
 set +e
 k6 run "$LOAD_DIR/message-write.k6.js" $K6_ARGS 2>&1 | tee "$TMP_K6"
 K6_EXIT=${PIPESTATUS[0]}
 set -e
 
 wait "$MON_PID"
+if [[ -n "$PROFILE_PID" ]]; then
+  wait "$PROFILE_PID" || true
+fi
 
 cp "$TMP_TSV" "$OUT_DIR/samples.tsv"
 cp "$TMP_K6" "$OUT_DIR/k6.log"

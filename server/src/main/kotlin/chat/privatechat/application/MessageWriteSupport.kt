@@ -19,9 +19,14 @@ class MessageWriteSupport(
     suspend fun persistMessageAndOutbox(
         message: Message,
         outboxEvent: OutboxEvent,
-        source: MessageSource
+        source: MessageSource,
+        membershipVerified: Boolean = false
     ): Message {
-        val saved = messageRepository.insertForSender(message)
+        val saved = if (membershipVerified) {
+            messageRepository.insertForVerifiedMember(message)
+        } else {
+            messageRepository.insertForSender(message)
+        }
         outboxRepository.insert(outboxEvent)
         chatMetrics.recordMessageAccepted(source)
         return saved

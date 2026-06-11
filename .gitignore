@@ -10,4 +10,5 @@ out/
 .env
 *.log
 load-tests/results/
+load-tests/tools/
 .DS_Store

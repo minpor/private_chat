@@ -91,6 +91,31 @@ class R2dbcMessageRepository(
             ?: throw ChatAccessDeniedException(message.chatId)
     }
 
+    override suspend fun insertForVerifiedMember(message: Message): Message {
+        val inserted = databaseClient.sql(
+            """
+            INSERT INTO messages (id, chat_id, sender_id, client_msg_id, body, reply_to, created_at)
+            VALUES (:id, :chat_id, :sender_id, :client_msg_id, :body, :reply_to, :created_at)
+            ON CONFLICT (chat_id, client_msg_id) DO NOTHING
+            RETURNING id, chat_id, sender_id, client_msg_id, body, reply_to, created_at, deleted_at
+            """.trimIndent()
+        )
+            .bind("id", message.id)
+            .bind("chat_id", message.chatId)
+            .bind("sender_id", message.senderId)
+            .bind("client_msg_id", message.clientMessageId)
+            .bind("body", message.body)
+            .bindNullable("reply_to", message.replyTo)
+            .bind("created_at", message.createdAt)
+            .map { row, _ -> row.toMessage() }
+            .awaitOneOrNull()
+
+        if (inserted != null) return inserted
+
+        return findByClientMessageId(message.chatId, message.clientMessageId)
+            ?: throw ChatAccessDeniedException(message.chatId)
+    }
+
     override suspend fun listBefore(chatId: UUID, before: Instant?, limit: Int): List<Message> {
         val sql = if (before == null) {
             """
